@@ -8,6 +8,9 @@ using planProject.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ------------------ CHARGER LE FICHIER SECRET ------------------
+builder.Configuration.AddJsonFile("appsettings.Secret.json", optional: true, reloadOnChange: true);
+
 // ================= DATABASE =================
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -43,7 +46,7 @@ builder.Services.AddScoped<IUserService,UserService>();
 builder.Services.AddScoped<IProjectService,ProjectService>();
 builder.Services.AddScoped<IEmailService,EmailService>();
 
-// Swagger + JWT support
+// ---------------- Swagger + JWT support ----------------
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -78,21 +81,15 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         policy
-            .AllowAnyOrigin()    // Autorise toutes les origines (front, Swagger, Postman)
-            .AllowAnyHeader()    // Autorise tous les headers (Authorization, Content-Type…)
-            .AllowAnyMethod();   // Autorise GET, POST, PUT, DELETE…
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
 builder.Services.AddControllers();
 
-
-
-
-var app = builder.Build();   
-
-
-
+var app = builder.Build();
 
 // ================= PIPELINE =================
 app.UseCors(); 
@@ -107,8 +104,6 @@ app.UseSwaggerUI(options =>
 app.UseAuthentication();
 app.UseAuthorization();
 
-
 app.MapControllers();
 
 app.Run();
-
