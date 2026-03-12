@@ -10,7 +10,7 @@ using System.ComponentModel.DataAnnotations.Schema;
         public int Id { get; set; }
 
         [Column("parent_id")]
-        public int ParentId { get; set; }
+        public int? ParentId { get; set; }
 
         [Required]
         [Column("project_id")]

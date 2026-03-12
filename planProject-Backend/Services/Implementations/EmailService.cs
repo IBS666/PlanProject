@@ -20,7 +20,7 @@ namespace planProject.Services
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(settings["FromName"], settings["FromEmail"]));
             message.To.Add(new MailboxAddress(name, toEmail));
-            message.Subject = "Bienvenue sur Axia Agile — Vos identifiants de connexion";
+            message.Subject = "Bienvenue sur Axia Plan — Vos identifiants de connexion";
 
             message.Body = new TextPart("html")
             {

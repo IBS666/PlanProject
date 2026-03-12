@@ -45,6 +45,7 @@ builder.Services.AddScoped<IAuthService,AuthService>();
 builder.Services.AddScoped<IUserService,UserService>();
 builder.Services.AddScoped<IProjectService,ProjectService>();
 builder.Services.AddScoped<IEmailService,EmailService>();
+builder.Services.AddScoped<ILocationService,LocationService>();
 
 // ---------------- Swagger + JWT support ----------------
 builder.Services.AddEndpointsApiExplorer();
@@ -87,7 +88,13 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler =
+            System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
+    
 
 var app = builder.Build();
 

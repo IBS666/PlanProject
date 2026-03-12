@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { getToken, removeToken, decodeToken } from '../utils/tokenUtils'
 import { userService } from '../services/Userservice'
 import { projectService } from '../services/Projectservice'
+import { locationService } from '../services/Locationservice'
 import type { User } from '../services/Userservice'
 import type { Project } from '../services/Projectservice'
+import type { Location } from '../services/Locationservice'
 
 const getRoleName = (role: string | { name: string }): string => {
   if (!role) return '—'
@@ -14,14 +16,16 @@ const getRoleName = (role: string | { name: string }): string => {
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, { label: string; color: string; bg: string }> = {
-    Active:      { label: 'Actif',      color: '#16a34a', bg: '#f0fdf4' },
-    Completed:   { label: 'Terminé',    color: '#1d4ed8', bg: '#eff6ff' },
-    OnHold:      { label: 'En pause',   color: '#d97706', bg: '#fffbeb' },
-    Cancelled:   { label: 'Annulé',     color: '#ef4444', bg: '#fff1f2' },
-    Planning:    { label: 'Planifié',   color: '#7c3aed', bg: '#fdf4ff' },
+    Active:    { label: 'Actif',    color: '#16a34a', bg: '#f0fdf4' },
+    Completed: { label: 'Terminé',  color: '#1d4ed8', bg: '#eff6ff' },
+    OnHold:    { label: 'En pause', color: '#d97706', bg: '#fffbeb' },
+    Cancelled: { label: 'Annulé',   color: '#ef4444', bg: '#fff1f2' },
+    Planning:  { label: 'Planifié', color: '#7c3aed', bg: '#fdf4ff' },
   }
   return map[status] || { label: status || '—', color: '#64748b', bg: '#f1f5f9' }
 }
+
+const LOCATION_TYPES = ['Bloc', 'Étage', 'Appartement', 'Zone']
 
 type Section = 'dashboard' | 'users' | 'projects'
 
@@ -31,6 +35,110 @@ const INITIAL_NOTIFICATIONS = [
   { id: 3, text: 'Utilisateur supprimé avec succès', time: 'Il y a 3h', unread: false },
 ]
 
+// ── LOCATION TREE NODE ──────────────────────────────────────────────────────
+function LocationTreeNode({
+  loc,
+  depth = 0,
+  onDelete,
+  onAddChild,
+}: {
+  loc: Location
+  depth?: number
+  onDelete: (loc: Location) => void
+  onAddChild: (parentLoc: Location) => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+  const hasChildren = loc.children && loc.children.length > 0
+
+  const typeColors: Record<string, { color: string; bg: string }> = {
+    Bloc:  { color: '#000000', bg: '#eff6ff' },
+    Étage:     { color: '#000000', bg: '#fdf4ff' },
+    Appartement:     { color: '#000000', bg: '#f0fdf4' },
+    Autre:     { color: '#000000', bg: '#f1f5f9' },
+  }
+  const tc = typeColors[loc.type] || typeColors['Autre']
+
+  return (
+    <div style={{ marginLeft: depth > 0 ? 24 : 0 }}>
+      <div
+        onClick={() => hasChildren && setExpanded(!expanded)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 14px', borderRadius: 8,
+          background: depth === 0 ? '#fafafa' : 'transparent',
+          border: depth === 0 ? '1px solid #e2e8f0' : 'none',
+          marginBottom: 4, transition: 'background 0.12s',
+          cursor: hasChildren ? 'pointer' : 'default',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = depth === 0 ? '#f0f6ff' : '#f8fafc' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = depth === 0 ? '#fafafa' : 'transparent' }}
+      >
+        {/* Connector line for children */}
+        {depth > 0 && (
+          <div style={{ width: 16, height: 1, background: '#cbd5e1', flexShrink: 0 }} />
+        )}
+
+        {/* Expand/collapse indicator (not a button anymore, row click handles it) */}
+        {hasChildren ? (
+          <div style={{ width: 20, height: 20, borderRadius: 4, border: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#64748b' }}>
+            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+              {expanded ? <polyline points='18 15 12 9 6 15'/> : <polyline points='6 9 12 15 18 9'/>}
+            </svg>
+          </div>
+        ) : (
+          <div style={{ width: 20, height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#cbd5e1' }} />
+          </div>
+        )}
+
+        {/* Location icon */}
+        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke={tc.color} strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ flexShrink: 0 }}>
+          <path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/>
+          <circle cx='12' cy='10' r='3'/>
+        </svg>
+
+        <span style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', flex: 1 }}>{loc.name}</span>
+
+        <span style={{ fontSize: 11, fontWeight: 700, color: tc.color, background: tc.bg, padding: '2px 8px', borderRadius: 100, flexShrink: 0 }}>
+          {loc.type}
+        </span>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => onAddChild(loc)}
+            title='Ajouter un enfant'
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#1d4ed8' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}
+          >
+            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+          </button>
+          <button
+            onClick={() => onDelete(loc)}
+            title='Supprimer'
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.color = '#ef4444' }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}
+          >
+            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M9 6V4h6v2'/></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Children */}
+      {hasChildren && expanded && (
+        <div style={{ borderLeft: '2px solid #e2e8f0', marginLeft: 22, paddingLeft: 4 }}>
+          {loc.children!.map(child => (
+            <LocationTreeNode key={child.id} loc={child} depth={depth + 1} onDelete={onDelete} onAddChild={onAddChild} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const [section, setSection] = useState<Section>('dashboard')
@@ -62,6 +170,17 @@ export default function AdminDashboard() {
   const [newProject, setNewProject] = useState({ name: '', description: '', status: 'Planning' })
   const [editProject, setEditProject] = useState({ name: '', description: '', status: '' })
   const [projectErrors, setProjectErrors] = useState<Record<string, string>>({})
+
+  // Locations state
+  const [locationProjectId, setLocationProjectId] = useState<number | null>(null)
+  const [locationTree, setLocationTree] = useState<Location[]>([])
+  const [loadingLocations, setLoadingLocations] = useState(false)
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false)
+  const [showDeleteLocationModal, setShowDeleteLocationModal] = useState(false)
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
+  const [parentLocation, setParentLocation] = useState<Location | null>(null)
+  const [newLocation, setNewLocation] = useState({ name: '', type: 'Bâtiment', projectId: 0, parentId: null as number | null })
+  const [locationErrors, setLocationErrors] = useState<Record<string, string>>({})
 
   // Shared
   const [error, setError] = useState('')
@@ -103,9 +222,8 @@ export default function AdminDashboard() {
   // ── USERS ──
   const fetchUsers = async () => {
     setLoadingUsers(true); setError('')
-    try {
-      setUsers(await userService.getAll())
-    } catch (e: any) { setError(e.message) }
+    try { setUsers(await userService.getAll()) }
+    catch (e: any) { setError(e.message) }
     finally { setLoadingUsers(false) }
   }
 
@@ -157,9 +275,8 @@ export default function AdminDashboard() {
   // ── PROJECTS ──
   const fetchProjects = async () => {
     setLoadingProjects(true); setError('')
-    try {
-      setProjects(await projectService.getAll())
-    } catch (e: any) { setError(e.message) }
+    try { setProjects(await projectService.getAll()) }
+    catch (e: any) { setError(e.message) }
     finally { setLoadingProjects(false) }
   }
 
@@ -205,6 +322,73 @@ export default function AdminDashboard() {
     finally { setActionLoading(false) }
   }
 
+  // ── LOCATIONS ──
+  const fetchLocationTree = async (projectId: number) => {
+    setLoadingLocations(true); setError('')
+    try { setLocationTree(await locationService.getTree(projectId)) }
+    catch (e: any) { setError(e.message) }
+    finally { setLoadingLocations(false) }
+  }
+
+
+
+  const handleProjectSelect = (projectId: number) => {
+    setLocationProjectId(projectId)
+    setLocationTree([])
+    fetchLocationTree(projectId)
+  }
+
+  const handleAddLocation = async () => {
+    const errs: Record<string, string> = {}
+    if (!newLocation.name.trim()) errs.name = 'Nom requis'
+    if (!newLocation.type) errs.type = 'Type requis'
+    if (!locationProjectId) errs.project = 'Projet requis'
+    setLocationErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setActionLoading(true)
+    try {
+      await locationService.create({
+        name: newLocation.name,
+        type: newLocation.type,
+        projectId: locationProjectId!,
+        parentId: newLocation.parentId,
+      })
+      await fetchLocationTree(locationProjectId!)
+      setShowAddLocationModal(false)
+      setNewLocation({ name: '', type: 'Bâtiment', projectId: locationProjectId!, parentId: null })
+      setParentLocation(null)
+      showSuccess('Localisation ajoutée avec succès')
+    } catch (e: any) { setError(e.message) }
+    finally { setActionLoading(false) }
+  }
+
+  const handleDeleteLocation = async () => {
+    if (!selectedLocation) return
+    setActionLoading(true)
+    try {
+      await locationService.delete(selectedLocation.id)
+      if (locationProjectId) await fetchLocationTree(locationProjectId)
+      setShowDeleteLocationModal(false)
+      showSuccess('Localisation supprimée avec succès')
+    } catch (e: any) { setError(e.message) }
+    finally { setActionLoading(false) }
+  }
+
+  const openAddChildModal = (parent: Location) => {
+    setParentLocation(parent)
+    setNewLocation({ name: '', type: 'Salle', projectId: locationProjectId!, parentId: parent.id })
+    setLocationErrors({})
+    setShowAddLocationModal(true)
+  }
+
+  const openAddRootModal = () => {
+    setParentLocation(null)
+    setNewLocation({ name: '', type: 'Bâtiment', projectId: locationProjectId!, parentId: null })
+    setLocationErrors({})
+    setShowAddLocationModal(true)
+  }
+
+  // ── HELPERS ──
   const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000) }
   const markAllRead = () => setNotifications(n => n.map(x => ({ ...x, unread: false })))
   const handleLogout = () => { removeToken(); navigate('/login') }
@@ -215,14 +399,10 @@ export default function AdminDashboard() {
   })
 
   const filteredProjects = projects.filter(p => {
-  const q = projectSearch.toLowerCase()
-  const formattedDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : ''
-  return (
-    p.name?.toLowerCase().includes(q) ||
-    formattedDate.includes(q) ||
-    p.status?.toLowerCase().includes(q)
-  )
-})
+    const q = projectSearch.toLowerCase()
+    const formattedDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : ''
+    return p.name?.toLowerCase().includes(q) || formattedDate.includes(q) || p.status?.toLowerCase().includes(q)
+  })
 
   const inputStyle = (hasError?: boolean): React.CSSProperties => ({
     width: '100%', padding: '11px 14px', fontSize: 14,
@@ -297,7 +477,7 @@ export default function AdminDashboard() {
           {navItems.map(item => {
             const active = section === item.id
             return (
-              <button key={item.id} onClick={() => setSection(item.id as Section)}
+              <button key={item.id} onClick={() => { setSection(item.id as Section); setLocationProjectId(null); setLocationTree([]) }}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: active ? '#eff6ff' : 'transparent', color: active ? '#1d4ed8' : '#64748b', fontWeight: active ? 700 : 500, fontSize: 14, marginBottom: 4, transition: 'all 0.15s', textAlign: 'left' }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f8fafc' }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
@@ -326,7 +506,7 @@ export default function AdminDashboard() {
             <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Axia Plan</span>
             <span style={{ color: '#cbd5e1', fontSize: 12 }}>/</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-              {section === 'dashboard' ? 'Tableau de bord' : section === 'users' ? 'Utilisateurs' : 'Projets'}
+              {section === 'dashboard' ? 'Tableau de bord' : section === 'users' ? 'Utilisateurs' : locationProjectId ? projects.find(p => p.id === locationProjectId)?.name || 'Projets' : 'Projets'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -422,26 +602,26 @@ export default function AdminDashboard() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 32 }}>
                 {[
-                  { label: 'Utilisateurs', value: users.length, color: '#eff6ff', text: '#1d4ed8', action: () => setSection('users') },
-                  { label: 'Projets', value: projects.length, color: '#fdf4ff', text: '#1d4ed8', action: () => setSection('projects') },
-                  { label: 'Plans', value: '—', color: '#f0fdf4', text: '#1d4ed8', action: () => {} },
+                  { label: 'Utilisateurs', value: users.length, action: () => setSection('users') },
+                  { label: 'Projets', value: projects.length, action: () => setSection('projects') },
+                  { label: 'Plans', value: '—', action: () => {} },
                 ].map((s, i) => (
                   <div key={i} onClick={s.action}
                     style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px 28px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
                     onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
                     onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{s.label}</span>
                     </div>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: s.text, letterSpacing: '-1px' }}>{s.value || '—'}</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: '#1d4ed8', letterSpacing: '-1px' }}>{s.value || '—'}</div>
                   </div>
                 ))}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px 28px' }}>
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Actions rapides</h2>
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button onClick={() => setSection('users')} style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', fontWeight: 600, fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer' }}>Gérer les utilisateurs</button>
                     <button onClick={() => setSection('projects')} style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', fontWeight: 600, fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer' }}>Gérer les projets</button>
                   </div>
@@ -497,9 +677,7 @@ export default function AdminDashboard() {
                   <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
                 ) : filteredUsers.length === 0 ? (
                   <div style={{ padding: '48px', textAlign: 'center' }}>
-                    <svg width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
                     <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{search ? `Aucun résultat pour « ${search} »` : 'Aucun utilisateur trouvé'}</p>
-                    {search && <button onClick={() => setSearch('')} style={{ marginTop: 8, fontSize: 12, color: '#1d4ed8', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Effacer la recherche</button>}
                   </div>
                 ) : filteredUsers.map((u, i) => (
                   <div key={u.id}
@@ -520,63 +698,135 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ── PROJECTS ── */}
+          {/* ── PROJECTS (liste ou détail localisations) ── */}
           {section === 'projects' && (
             <div>
-              <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <div>
-                  <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: 6 }}>Projets</h1>
-                  <p style={{ color: '#64748b', fontSize: 14 }}>Gérez les projets de la plateforme.</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ position: 'relative' }}>
-                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
-                    <input type='text' placeholder='Rechercher...' value={projectSearch} onChange={e => setProjectSearch(e.target.value)}
-                      style={{ paddingLeft: 34, paddingRight: projectSearch ? 32 : 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#0f172a', background: '#ffffff', width: 220, boxSizing: 'border-box' }}
-                      onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-                    {projectSearch && <button onClick={() => setProjectSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>}
-                  </div>
-                  
-                </div>
-              </div>
-              {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
-              <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '12px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  {['Nom', 'Description', 'Statut', 'Créé le', ''].map(h => <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
-                </div>
-                {loadingProjects ? (
-                  <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
-                ) : filteredProjects.length === 0 ? (
-                  <div style={{ padding: '48px', textAlign: 'center' }}>
-                    <svg width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}><path d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/></svg>
-                    <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{projectSearch ? `Aucun résultat pour « ${projectSearch} »` : 'Aucun projet trouvé'}</p>
-                  </div>
-                ) : filteredProjects.map((p, i) => {
-                  const st = getStatusLabel(p.status)
-                  return (
-                    <div key={p.id}
-                      style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredProjects.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s' }}
-                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#fafafa'}
-                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
-                    >
-                      <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 14 }}>{p.name}</span>
-                      <span style={{ color: '#64748b', fontSize: 13, overflow: 'visible', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>{p.description || '—'}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: st.color, padding: '3px 10px', borderRadius: 100, display: 'inline-block' }}>{st.label}</span>
-                      <span style={{ color: '#94a3b8', fontSize: 12 }}>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}</span>
-                      <ThreeDotMenu id={p.id} refs={projectMenuRefs}
-                        onEdit={() => { setSelectedProject(p); setEditProject({ name: p.name, description: p.description || '', status: p.status }); setShowEditProjectModal(true); setOpenProjectMenuId(null) }}
-                        onDelete={() => { setSelectedProject(p); setShowDeleteProjectModal(true); setOpenProjectMenuId(null) }}
-                      />
+              {/* ── VUE LISTE PROJETS ── */}
+              {!locationProjectId ? (
+                <>
+                  <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    <div>
+                      <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: 6 }}>Projets</h1>
+                      <p style={{ color: '#64748b', fontSize: 14 }}>Cliquez sur un projet pour gérer ses localisations.</p>
                     </div>
-                  )
-                })}
-              </div>
+                    <div style={{ position: 'relative' }}>
+                      <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
+                      <input type='text' placeholder='Rechercher...' value={projectSearch} onChange={e => setProjectSearch(e.target.value)}
+                        style={{ paddingLeft: 34, paddingRight: projectSearch ? 32 : 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#0f172a', background: '#ffffff', width: 220, boxSizing: 'border-box' }}
+                        onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                      {projectSearch && <button onClick={() => setProjectSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>}
+                    </div>
+                  </div>
+                  {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
+                  <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '12px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      {['Nom', 'Description', 'Statut', 'Créé le', ''].map(h => <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
+                    </div>
+                    {loadingProjects ? (
+                      <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
+                    ) : filteredProjects.length === 0 ? (
+                      <div style={{ padding: '48px', textAlign: 'center' }}>
+                        <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{projectSearch ? `Aucun résultat pour « ${projectSearch} »` : 'Aucun projet trouvé'}</p>
+                      </div>
+                    ) : filteredProjects.map((p, i) => {
+                      const st = getStatusLabel(p.status)
+                      return (
+                        <div key={p.id}
+                          style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredProjects.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s', cursor: 'pointer' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#eff6ff'}
+                          onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
+                          onClick={() => {
+                            setLocationProjectId(p.id)
+                            setLocationTree([])
+                            fetchLocationTree(p.id)
+                          }}
+                        >
+                          <span style={{ fontWeight: 700, color: '#64748b', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>{p.name}</span>
+                          <span style={{ color: '#64748b', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>{p.description || '—'}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: st.color, padding: '3px 10px', borderRadius: 100, display: 'inline-block' }}>{st.label}</span>
+                          <span style={{ color: '#94a3b8', fontSize: 12 }}>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}</span>
+                          <div onClick={e => e.stopPropagation()}>
+                            <ThreeDotMenu id={p.id} refs={projectMenuRefs}
+                              onEdit={() => { setSelectedProject(p); setEditProject({ name: p.name, description: p.description || '', status: p.status }); setShowEditProjectModal(true); setOpenProjectMenuId(null) }}
+                              onDelete={() => { setSelectedProject(p); setShowDeleteProjectModal(true); setOpenProjectMenuId(null) }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              ) : (
+                /* ── VUE LOCALISATIONS DU PROJET ── */
+                <>
+                  <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div>
+                      {/* Breadcrumb retour */}
+                      <button
+                        onClick={() => { setLocationProjectId(null); setLocationTree([]) }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600, padding: '0 0 10px', marginBottom: 4 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                      >
+                        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><polyline points='15 18 9 12 15 6'/></svg>
+                        Retour aux projets
+                      </button>
+                      <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: 6 }}>
+                        {projects.find(p => p.id === locationProjectId)?.name}
+                      </h1>
+                      <p style={{ color: '#64748b', fontSize: 14 }}>Localisations du projet — arborescence complète.</p>
+                    </div>
+                    <button onClick={openAddRootModal}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap', marginTop: 30 }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#1e40af'} onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}
+                    >
+                      <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+                      Ajouter une localisation
+                    </button>
+                  </div>
+
+                  {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
+
+                  <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Arborescence</h2>
+                      <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>
+                        {locationTree.length} localisation{locationTree.length !== 1 ? 's' : ''} racine{locationTree.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {loadingLocations ? (
+                      <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
+                    ) : locationTree.length === 0 ? (
+                      <div style={{ padding: '32px', textAlign: 'center' }}>
+                        <svg width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>
+                        <p style={{ color: '#94a3b8', fontSize: 14, margin: '0 0 12px' }}>Aucune localisation pour ce projet</p>
+                        <button onClick={openAddRootModal} style={{ padding: '9px 18px', background: '#1d4ed8', color: 'white', fontWeight: 600, fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
+                          Créer la première localisation
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {locationTree.map(loc => (
+                          <LocationTreeNode
+                            key={loc.id}
+                            loc={loc}
+                            depth={0}
+                            onDelete={loc => { setSelectedLocation(loc); setShowDeleteLocationModal(true) }}
+                            onAddChild={openAddChildModal}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </main>
       </div>
 
-      {/* ══ MODALS UTILISATEURS ══ */}
+      {/* ══ USER MODALS (unchanged) ══ */}
       {showDeleteModal && selectedUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
@@ -607,9 +857,7 @@ export default function AdminDashboard() {
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Rôle</label>
                 <select value={editRole} onChange={e => setEditRole(e.target.value)} style={{ width: '100%', padding: '11px 14px', fontSize: 14, border: '1px solid #e2e8f0', borderRadius: 8, outline: 'none', color: '#0f172a', background: '#f8fafc' }}>
-                  <option value='Admin'>Admin</option>
-                  <option value='Chef'>Chef</option>
-                  <option value='Ingenieur'>Ingénieur</option>
+                  <option value='Admin'>Admin</option><option value='Chef'>Chef</option><option value='Ingenieur'>Ingénieur</option>
                 </select>
               </div>
             </div>
@@ -648,7 +896,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ══ MODALS PROJETS ══ */}
+      {/* ══ PROJECT MODALS (unchanged) ══ */}
       {showDeleteProjectModal && selectedProject && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteProjectModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
@@ -718,6 +966,71 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { setShowAddProjectModal(false); setProjectErrors({}); setNewProject({ name: '', description: '', status: 'Planning' }) }} style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>Annuler</button>
               <button onClick={handleAddProject} disabled={actionLoading} style={{ flex: 1, padding: '11px', background: '#1d4ed8', border: 'none', borderRadius: 8, cursor: actionLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>{actionLoading ? 'Création...' : 'Créer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ LOCATION MODALS ══ */}
+      {showDeleteLocationModal && selectedLocation && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteLocationModal(false) }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg>
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>Supprimer la localisation</h2>
+            <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 8, lineHeight: 1.6 }}>
+              Supprimer <strong>{selectedLocation.name}</strong> ?
+            </p>
+            <p style={{ color: '#d97706', fontSize: 12, textAlign: 'center', marginBottom: 24, background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
+              ⚠ Impossible de supprimer une localisation ayant des enfants.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowDeleteLocationModal(false)} style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>Annuler</button>
+              <button onClick={handleDeleteLocation} disabled={actionLoading} style={{ flex: 1, padding: '11px', background: '#ef4444', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>{actionLoading ? 'Suppression...' : 'Supprimer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddLocationModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) { setShowAddLocationModal(false); setLocationErrors({}) } }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+              {parentLocation ? `Ajouter sous « ${parentLocation.name} »` : 'Nouvelle localisation racine'}
+            </h2>
+            {parentLocation && (
+              <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
+                Enfant de <strong style={{ color: '#1d4ed8' }}>{parentLocation.name}</strong> ({parentLocation.type})
+              </p>
+            )}
+            {!parentLocation && <div style={{ marginBottom: 20 }} />}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Nom</label>
+                <input
+                  placeholder='Ex: Bâtiment A, Salle 101...'
+                  value={newLocation.name}
+                  onChange={e => { setNewLocation(p => ({ ...p, name: e.target.value })); setLocationErrors(p => ({ ...p, name: '' })) }}
+                  style={inputStyle(!!locationErrors.name)}
+                  onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+                {locationErrors.name && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#ef4444' }}>⚠ {locationErrors.name}</p>}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Type</label>
+                <select
+                  value={newLocation.type}
+                  onChange={e => setNewLocation(p => ({ ...p, type: e.target.value }))}
+                  style={{ width: '100%', padding: '11px 14px', fontSize: 14, border: '1px solid #e2e8f0', borderRadius: 8, outline: 'none', color: '#0f172a', background: '#f8fafc' }}
+                >
+                  {LOCATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setShowAddLocationModal(false); setLocationErrors({}); setParentLocation(null) }} style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>Annuler</button>
+              <button onClick={handleAddLocation} disabled={actionLoading} style={{ flex: 1, padding: '11px', background: '#1d4ed8', border: 'none', borderRadius: 8, cursor: actionLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>{actionLoading ? 'Création...' : 'Créer'}</button>
             </div>
           </div>
         </div>
