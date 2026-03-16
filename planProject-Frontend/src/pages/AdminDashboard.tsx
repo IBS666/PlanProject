@@ -47,7 +47,7 @@ function LocationTreeNode({
   onDelete: (loc: Location) => void
   onAddChild: (parentLoc: Location) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const hasChildren = loc.children && loc.children.length > 0
 
   const typeColors: Record<string, { color: string; bg: string }> = {
@@ -73,23 +73,10 @@ function LocationTreeNode({
         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = depth === 0 ? '#f0f6ff' : '#f8fafc' }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = depth === 0 ? '#fafafa' : 'transparent' }}
       >
-        {/* Connector line for children */}
-        {depth > 0 && (
-          <div style={{ width: 16, height: 1, background: '#cbd5e1', flexShrink: 0 }} />
-        )}
+        
 
-        {/* Expand/collapse indicator (not a button anymore, row click handles it) */}
-        {hasChildren ? (
-          <div style={{ width: 20, height: 20, borderRadius: 4, border: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#64748b' }}>
-            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
-              {expanded ? <polyline points='18 15 12 9 6 15'/> : <polyline points='6 9 12 15 18 9'/>}
-            </svg>
-          </div>
-        ) : (
-          <div style={{ width: 20, height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#cbd5e1' }} />
-          </div>
-        )}
+        
+        
 
         {/* Location icon */}
         <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke={tc.color} strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ flexShrink: 0 }}>
@@ -332,11 +319,6 @@ export default function AdminDashboard() {
 
 
 
-  const handleProjectSelect = (projectId: number) => {
-    setLocationProjectId(projectId)
-    setLocationTree([])
-    fetchLocationTree(projectId)
-  }
 
   const handleAddLocation = async () => {
     const errs: Record<string, string> = {}
@@ -355,7 +337,7 @@ export default function AdminDashboard() {
       })
       await fetchLocationTree(locationProjectId!)
       setShowAddLocationModal(false)
-      setNewLocation({ name: '', type: 'Bâtiment', projectId: locationProjectId!, parentId: null })
+      setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null })
       setParentLocation(null)
       showSuccess('Localisation ajoutée avec succès')
     } catch (e: any) { setError(e.message) }
@@ -376,14 +358,14 @@ export default function AdminDashboard() {
 
   const openAddChildModal = (parent: Location) => {
     setParentLocation(parent)
-    setNewLocation({ name: '', type: 'Salle', projectId: locationProjectId!, parentId: parent.id })
+    setNewLocation({ name: '', type: 'Appartement', projectId: locationProjectId!, parentId: parent.id })
     setLocationErrors({})
     setShowAddLocationModal(true)
   }
 
   const openAddRootModal = () => {
     setParentLocation(null)
-    setNewLocation({ name: '', type: 'Bâtiment', projectId: locationProjectId!, parentId: null })
+    setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null })
     setLocationErrors({})
     setShowAddLocationModal(true)
   }
@@ -999,11 +981,7 @@ export default function AdminDashboard() {
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
               {parentLocation ? `Ajouter sous « ${parentLocation.name} »` : 'Nouvelle localisation racine'}
             </h2>
-            {parentLocation && (
-              <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>
-                Enfant de <strong style={{ color: '#1d4ed8' }}>{parentLocation.name}</strong> ({parentLocation.type})
-              </p>
-            )}
+            
             {!parentLocation && <div style={{ marginBottom: 20 }} />}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
               <div>

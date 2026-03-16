@@ -1,11 +1,19 @@
 {
   "Version": 1,
-  "Hash": "u90/BKA5l/5ZoRx1A9xx1j9XovfuSOGMDCOvaYVVmSQ=",
+  "Hash": "zsO79dU4ideX7kQYcQQ/xwHsO2lgB7gR98xEx/2B/g8=",
   "Source": "planProject",
   "BasePath": "_content/planProject",
   "Mode": "Default",
   "ManifestType": "Build",
   "ReferencedProjectsConfiguration": [],
-  "DiscoveryPatterns": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "planProject\\wwwroot",
+      "Source": "planProject",
+      "ContentRoot": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\",
+      "BasePath": "_content/planProject",
+      "Pattern": "**"
+    }
+  ],
   "Assets": []
 }

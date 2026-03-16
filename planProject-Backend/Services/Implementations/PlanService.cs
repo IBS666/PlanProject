@@ -1,31 +1,102 @@
 using Microsoft.EntityFrameworkCore;
 using planProject.Data;
+using planProject.Services.Interfaces;
 
 namespace planProject.Services
 {
-    public class PlanService
+    public class PlanService : IPlanService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IWebHostEnvironment _env;
 
-        public PlanService(ApplicationDbContext context)
+        public PlanService(ApplicationDbContext context, IWebHostEnvironment env)
         {
             _context = context;
+            _env = env;
         }
-   
-    
-    public async Task<Plan> CreatePlanAsync(CreatePlanDto request)
-    {
-        var plan = new Plan
+
+        // CREATE PLAN + UPLOAD FILE + CREATE VERSION
+        public async Task<Plan> CreatePlanAsync(CreatePlanDto request, int userId)
         {
-            Name = request.Name,
-            Status = request.Status,
-            Category = request.Category,
-        };
+           
+            var plan = new Plan
+            {
+                Name = request.Name,
+                Status = request.Status,
+                Category = request.Category,
+                LocationId = request.LocationId,
+                CurrentVersion = 1
+            };
 
-        _context.Plans.Add(plan);
-        await _context.SaveChangesAsync();
+            await _context.Plans.AddAsync(plan);
+            await _context.SaveChangesAsync();
 
-        return plan;
+            // 2️⃣ CREATE FOLDER
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var folderPath = Path.Combine(webRootPath, "plans", plan.Id.ToString());
+
+            if (!Directory.Exists(folderPath))
+                Directory.CreateDirectory(folderPath);
+
+            
+            var fileName = $"v1_{request.File.FileName}";
+            var fullPath = Path.Combine(folderPath, fileName);
+
+            using (var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                await request.File.CopyToAsync(stream);
+            }
+
+           
+            var version = new PlanVersion
+            {
+                PlanId = plan.Id,
+                VersionNumber = 1,
+                FilePath = $"/plans/{plan.Id}/{fileName}",
+                FileSize = request.File.Length,
+                FileType = request.File.ContentType,
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.PlanVersions.AddAsync(version);
+
+            await _context.SaveChangesAsync();
+
+            return plan;
+        }
+
+        // GET PLAN BY ID
+        public async Task<Plan?> GetPlanByIdAsync(int planId)
+        {
+            return await _context.Plans
+                .Include(p => p.PlanVersions)
+                .FirstOrDefaultAsync(p => p.Id == planId);
+        }
+
+        // GET PLANS BY LOCATION
+        public async Task<List<Plan>> GetPlansByLocationAsync(int locationId)
+        {
+            return await _context.Plans
+                .Where(p => p.LocationId == locationId)
+                .Include(p => p.PlanVersions)
+                .ToListAsync();
+        }
+
+        // DELETE PLAN
+        public async Task<bool> DeletePlanAsync(int planId)
+        {
+            var plan = await _context.Plans
+                .FirstOrDefaultAsync(p => p.Id == planId);
+
+            if (plan == null)
+                return false;
+
+            _context.Plans.Remove(plan);
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
     }
-
-}}
+}

@@ -46,6 +46,7 @@ builder.Services.AddScoped<IUserService,UserService>();
 builder.Services.AddScoped<IProjectService,ProjectService>();
 builder.Services.AddScoped<IEmailService,EmailService>();
 builder.Services.AddScoped<ILocationService,LocationService>();
+builder.Services.AddScoped<IPlanService,PlanService>();
 
 // ---------------- Swagger + JWT support ----------------
 builder.Services.AddEndpointsApiExplorer();
@@ -75,6 +76,13 @@ builder.Services.AddSwaggerGen(options =>
             new string[] {}
         }
     });
+    
+    options.MapType<IFormFile>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+    {
+        Type = "string",
+        Format = "binary"
+    });
+    
 });
 
 builder.Services.AddCors(options =>
@@ -112,5 +120,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.UseStaticFiles();
 
 app.Run();

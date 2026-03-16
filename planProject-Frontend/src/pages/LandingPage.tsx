@@ -1,4 +1,4 @@
-import { useState, useEffect, type MouseEvent } from "react";
+import { useState, useEffect} from "react";
 import type { JSX } from "react";
 import { Link } from "react-router-dom";
 import { FolderOpen, PenLine, GitBranch, Bot, LayoutDashboard, Search, Lightbulb, Upload } from "lucide-react";

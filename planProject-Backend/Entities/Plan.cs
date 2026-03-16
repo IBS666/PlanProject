@@ -8,6 +8,9 @@ using System.ComponentModel.DataAnnotations.Schema;
         [Key]
         [Column("id")]
         public int Id { get; set; }
+        
+        [Column("location_id")]
+        public int LocationId { get; set; }
 
 
         [Column("current_version")]
