@@ -1,0 +1,29 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\11\\v1_Architectural.png",
+      "PackagePath": "staticwebassets\\plans\\11\\v1_Architectural.png"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\12\\v1_plomberie.png",
+      "PackagePath": "staticwebassets\\plans\\12\\v1_plomberie.png"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.planProject.props",
+      "PackagePath": "build\\planProject.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.planProject.props",
+      "PackagePath": "buildMultiTargeting\\planProject.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.planProject.props",
+      "PackagePath": "buildTransitive\\planProject.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.planProject.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

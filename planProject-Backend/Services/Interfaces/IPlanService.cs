@@ -7,4 +7,8 @@ public interface IPlanService
     Task<List<Plan>> GetPlansByLocationAsync(int locationId);
 
     Task<bool> DeletePlanAsync(int planId);
+
+    Task<List<LocationWithPlansDto>> GetLocationsWithPlansAsync();
+
+    Task<int> CountPlansAsync();
 }

@@ -4,6 +4,7 @@ import Login from '../pages/Login'
 import ForgotPassword from '../pages/ForgotPassword'
 import ResetPassword from '../pages/ResetPassword'
 import AdminDashboard from '../pages/AdminDashboard'
+import ChefDashboard from '../pages/ChefDashboard'
 
 export default function AppRouter() {
   return (
@@ -14,6 +15,7 @@ export default function AppRouter() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/chef" element={<ChefDashboard />} />
       </Routes>
     </BrowserRouter>
   )

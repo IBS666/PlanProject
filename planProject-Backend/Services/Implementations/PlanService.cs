@@ -98,5 +98,21 @@ namespace planProject.Services
 
             return true;
         }
+
+        public async Task<List<LocationWithPlansDto>> GetLocationsWithPlansAsync()
+        {
+            return await _context.Locations
+                .Select(l => new LocationWithPlansDto
+                {
+                    LocationId = l.Id,
+                    HasPlans = l.Plans.Any()
+                })
+                .ToListAsync();
+        }
+
+        public async Task<int> CountPlansAsync()
+        {
+            return await _context.Plans.CountAsync();
+        }
     }
 }

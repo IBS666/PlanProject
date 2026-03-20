@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "zsO79dU4ideX7kQYcQQ/xwHsO2lgB7gR98xEx/2B/g8=",
+  "Hash": "BrSLPX0AzQp4S+vjV+haXR8BoblabcOnYXNAK8e2Yrk=",
   "Source": "planProject",
   "BasePath": "_content/planProject",
   "Mode": "Default",
@@ -15,5 +15,44 @@
       "Pattern": "**"
     }
   ],
-  "Assets": []
+  "Assets": [
+    {
+      "Identity": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\11\\v1_Architectural.png",
+      "SourceId": "planProject",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\",
+      "BasePath": "_content/planProject",
+      "RelativePath": "plans/11/v1_Architectural.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\plans\\11\\v1_Architectural.png"
+    },
+    {
+      "Identity": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\12\\v1_plomberie.png",
+      "SourceId": "planProject",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\",
+      "BasePath": "_content/planProject",
+      "RelativePath": "plans/12/v1_plomberie.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\plans\\12\\v1_plomberie.png"
+    }
+  ]
 }

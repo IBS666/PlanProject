@@ -1,4 +1,3 @@
-// services/Planservice.ts
 import { getToken } from '../utils/tokenUtils'
 
 export interface PlanVersion {
@@ -20,6 +19,11 @@ export interface Plan {
   planVersions: PlanVersion[]
 }
 
+export interface LocationWithPlans {
+  locationId: number
+  hasPlans: boolean
+}
+
 const BASE_URL = 'http://localhost:5279/api'
 
 const headers = () => ({
@@ -30,6 +34,24 @@ export const planService = {
   getByLocation: async (locationId: number): Promise<Plan[]> => {
     const res = await fetch(`${BASE_URL}/plan/location/${locationId}`, { headers: headers() })
     if (!res.ok) throw new Error('Erreur chargement plans')
+    return res.json()
+  },
+
+  getTotalCount: async (): Promise<number> => {
+    const res = await fetch(`${BASE_URL}/plan/count`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur chargement total plans')
+    return res.json()
+  },
+
+  getRecent: async (limit = 5): Promise<Plan[]> => {
+    const res = await fetch(`${BASE_URL}/plan/recent?limit=${limit}`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur chargement plans récents')
+    return res.json()
+  },
+
+  getLocationsWithPlans: async (): Promise<LocationWithPlans[]> => {
+    const res = await fetch(`${BASE_URL}/plan/location-with-plans`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur chargement locations avec plans')
     return res.json()
   },
 }

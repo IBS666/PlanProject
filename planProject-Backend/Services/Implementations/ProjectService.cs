@@ -84,23 +84,24 @@ namespace planProject.Services
             return "Project deleted successfully";
         }
 
-        public async Task<string> AddMemberAsync(int projectId, int userIdToAdd, int currentUserId)
+
+        public async Task<string> AddMemberByEmailAsync(int projectId, string emailToAdd, int currentUserId)
         {
             if (!await IsProjectOwner(projectId, currentUserId))
                 return "Unauthorized";
 
-            var user = await _context.Users.FindAsync(userIdToAdd);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == emailToAdd);
             if (user == null)
                 return "User not found";
 
             if (await _context.ProjectMembers
-                .AnyAsync(pm => pm.ProjectId == projectId && pm.UserId == userIdToAdd))
+                .AnyAsync(pm => pm.ProjectId == projectId && pm.UserId == user.Id))
                 return "User is already a member";
 
             _context.ProjectMembers.Add(new ProjectMember
             {
                 ProjectId = projectId,
-                UserId = userIdToAdd,
+                UserId = user.Id,
                 RoleInProject = "Member",
                 JoinedAt = DateTime.UtcNow
             });
@@ -137,12 +138,14 @@ namespace planProject.Services
             return await _context.ProjectMembers
                 .Where(pm => pm.ProjectId == projectId)
                 .Include(pm => pm.User)
+                .ThenInclude(u => u.Role)
                 .Select(pm => new
                 {
                     pm.User.Id,
                     pm.User.Name,
                     pm.User.Email,
-                    pm.RoleInProject
+                    pm.RoleInProject,
+                    Role = pm.User.Role.Name
                 })
                 .ToListAsync<object>();
         }

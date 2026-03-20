@@ -45,6 +45,21 @@ namespace planProject.Controllers
             return Ok(plan);
         }
 
+        [HttpGet("count")]
+        public async Task<IActionResult> GetTotalPlansCount()
+        {
+            var count = await _planService.CountPlansAsync();
+            return Ok(count);
+        }
+
+        [AllowAnonymous]
+        [HttpGet("location-with-plans")]
+        public async Task<IActionResult> GetLocationsWithPlans()
+        {
+            var result = await _planService.GetLocationsWithPlansAsync();
+            return Ok(result);
+        }
+
         [HttpGet("location/{locationId}")]
         public async Task<IActionResult> GetPlansByLocation(int locationId)
         {
@@ -64,6 +79,8 @@ namespace planProject.Controllers
 
             return NoContent();
         }
+
+        
 
     }
 }

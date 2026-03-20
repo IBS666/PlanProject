@@ -56,11 +56,11 @@ namespace planProject.Controllers
         }
 
         [Authorize (Roles = "Admin,Chef")]
-        [HttpPost("{projectId}/members/{userId}")]
-        public async Task<IActionResult> AddMember(int projectId, int userId)
+        [HttpPost("{projectId}/members/{userEmail}")]
+        public async Task<IActionResult> AddMemberByEmail(int projectId, string userEmail)
         {
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var result = await _projectService.AddMemberAsync(projectId, userId, currentUserId);
+            var result = await _projectService.AddMemberByEmailAsync(projectId, userEmail, currentUserId);
 
             return result switch
             {

@@ -35,7 +35,7 @@ export default function Login() {
       console.log('Role détecté:', role)
 
       if (role === 'Admin') navigate('/admin')
-      else if (role === 'Chef') navigate('/chef/dashboard')
+      else if (role === 'Chef') navigate('/chef')
       else navigate('/ingenieur/dashboard')
 
     } catch (err: unknown) {

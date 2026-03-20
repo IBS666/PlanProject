@@ -10,7 +10,6 @@ namespace planProject.Services
 
         Task<string> DeleteProjectAsync(int projectId, int currentUserId);
 
-        Task<string> AddMemberAsync(int projectId, int userIdToAdd, int currentUserId);
 
         Task<string> RemoveMemberAsync(int projectId, int userIdToRemove, int currentUserId);
 
@@ -21,5 +20,7 @@ namespace planProject.Services
         Task<List<Project>> GetAllProjectsAsync();
 
         Task<bool> IsProjectOwner(int projectId, int userId);
+
+        Task<string> AddMemberByEmailAsync(int projectId, string emailToAdd, int currentUserId);
     }
 }
