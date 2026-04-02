@@ -9,6 +9,46 @@
       "PackagePath": "staticwebassets\\plans\\12\\v1_plomberie.png"
     },
     {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\13\\v1_elec.png",
+      "PackagePath": "staticwebassets\\plans\\13\\v1_elec.png"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v1_arch.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v1_arch.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v2_annotations_v1_p1.png",
+      "PackagePath": "staticwebassets\\plans\\14\\v2_annotations_v1_p1.png"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v3_annotations_v1_p1.png",
+      "PackagePath": "staticwebassets\\plans\\14\\v3_annotations_v1_p1.png"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v4_annotated_v1.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v4_annotated_v1.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v5_arch.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v5_arch.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v6_annotated_v5.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v6_annotated_v5.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v7_annotated_v6.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v7_annotated_v6.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\14\\v8_annotated_v7.pdf",
+      "PackagePath": "staticwebassets\\plans\\14\\v8_annotated_v7.pdf"
+    },
+    {
+      "Id": "C:\\Users\\MSI\\Desktop\\planProject\\planProject-Backend\\wwwroot\\plans\\15\\v1_arch.pdf",
+      "PackagePath": "staticwebassets\\plans\\15\\v1_arch.pdf"
+    },
+    {
       "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.planProject.props",
       "PackagePath": "build\\planProject.props"
     },

@@ -80,7 +80,25 @@ namespace planProject.Controllers
             return NoContent();
         }
 
-        
+        [Authorize(Roles = "Admin,Chef")]
+        [HttpPost("{planId}/versions")]
+        public async Task<IActionResult> AddVersion(int planId, [FromForm] IFormFile file, [FromForm] string? comment = null)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null) return Unauthorized();
+
+            var userId = int.Parse(userIdClaim.Value);
+
+            try
+            {
+                var version = await _planService.AddVersionAsync(planId, file, userId, comment);
+                return Ok(version);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
 
     }
 }

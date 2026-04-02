@@ -11,7 +11,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
         [Required]
         [Column("name")]
-        [StringLength(20)]
+        [StringLength(100)]
         public string Name { get; set; } = string.Empty;
 
         // Navigation properties

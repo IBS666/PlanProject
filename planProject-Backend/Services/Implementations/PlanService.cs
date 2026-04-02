@@ -15,7 +15,6 @@ namespace planProject.Services
             _env = env;
         }
 
-        // CREATE PLAN + UPLOAD FILE + CREATE VERSION
         public async Task<Plan> CreatePlanAsync(CreatePlanDto request, int userId)
         {
            
@@ -31,7 +30,7 @@ namespace planProject.Services
             await _context.Plans.AddAsync(plan);
             await _context.SaveChangesAsync();
 
-            // 2️⃣ CREATE FOLDER
+
             var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
             var folderPath = Path.Combine(webRootPath, "plans", plan.Id.ToString());
 
@@ -66,7 +65,7 @@ namespace planProject.Services
             return plan;
         }
 
-        // GET PLAN BY ID
+    
         public async Task<Plan?> GetPlanByIdAsync(int planId)
         {
             return await _context.Plans
@@ -74,7 +73,7 @@ namespace planProject.Services
                 .FirstOrDefaultAsync(p => p.Id == planId);
         }
 
-        // GET PLANS BY LOCATION
+        
         public async Task<List<Plan>> GetPlansByLocationAsync(int locationId)
         {
             return await _context.Plans
@@ -83,7 +82,7 @@ namespace planProject.Services
                 .ToListAsync();
         }
 
-        // DELETE PLAN
+        
         public async Task<bool> DeletePlanAsync(int planId)
         {
             var plan = await _context.Plans
@@ -114,5 +113,52 @@ namespace planProject.Services
         {
             return await _context.Plans.CountAsync();
         }
+
+        public async Task<PlanVersion> AddVersionAsync(int planId, IFormFile file, int userId, string? comment = null)
+        {
+            var plan = await _context.Plans
+                .Include(p => p.PlanVersions)
+                .FirstOrDefaultAsync(p => p.Id == planId);
+
+            if (plan == null)
+                throw new Exception("Plan introuvable");
+
+            var newVersionNumber = plan.PlanVersions.Any()
+                ? plan.PlanVersions.Max(v => v.VersionNumber) + 1
+                : 1;
+
+            var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var folderPath = Path.Combine(webRootPath, "plans", plan.Id.ToString());
+
+            if (!Directory.Exists(folderPath))
+                Directory.CreateDirectory(folderPath);
+
+            var fileName = $"v{newVersionNumber}_{file.FileName}";
+            var fullPath = Path.Combine(folderPath, fileName);
+
+            using (var stream = new FileStream(fullPath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var version = new PlanVersion
+            {
+                PlanId = plan.Id,
+                VersionNumber = newVersionNumber,
+                FilePath = $"/plans/{plan.Id}/{fileName}",
+                FileSize = file.Length,
+                FileType = file.ContentType,
+                Comment = comment, 
+                CreatedBy = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            plan.CurrentVersion = newVersionNumber;
+
+            await _context.PlanVersions.AddAsync(version);
+            await _context.SaveChangesAsync();
+
+            return version;
+        }       
     }
 }

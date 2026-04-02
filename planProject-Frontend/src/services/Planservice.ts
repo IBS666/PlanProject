@@ -7,6 +7,7 @@ export interface PlanVersion {
   fileSize: number
   fileType: string
   createdAt: string
+  comment?: string
 }
 
 export interface Plan {
@@ -54,4 +55,18 @@ export const planService = {
     if (!res.ok) throw new Error('Erreur chargement locations avec plans')
     return res.json()
   },
+
+  addVersion: async (planId: number, file: File, comment?: string) => {
+  const fd = new FormData()
+  fd.append('File', file)
+  if (comment?.trim()) fd.append('Comment', comment)
+  const res = await fetch(`${BASE_URL}/plan/${planId}/versions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: fd,
+  })
+  if (!res.ok) throw new Error('Erreur ajout version')
+  return res.json()
+}
+  
 }

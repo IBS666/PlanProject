@@ -13,7 +13,7 @@ namespace planProject.Services
             _context = context;
         }
 
-        // CREATE LOCATION
+        
         public async Task<Location> CreateLocationAsync(CreateLocationDto request)
         {
             var location = new Location
@@ -30,7 +30,7 @@ namespace planProject.Services
             return location;
         }
 
-        // GET LOCATION BY ID
+      
         public async Task<Location?> GetLocationByIdAsync(int locationId)
         {
             return await _context.Locations
@@ -38,7 +38,7 @@ namespace planProject.Services
                 .FirstOrDefaultAsync(l => l.Id == locationId);
         }
 
-        // GET LOCATIONS BY PROJECT
+        
         public async Task<List<Location>> GetLocationsByProjectIdAsync(int projectId)
         {
             return await _context.Locations
@@ -46,7 +46,7 @@ namespace planProject.Services
                 .ToListAsync();
         }
 
-        // GET CHILDREN OF A LOCATION
+        
         public async Task<List<Location>> GetLocationChildrensAsync(int locationId)
         {
             return await _context.Locations
@@ -54,7 +54,7 @@ namespace planProject.Services
                 .ToListAsync();
         }
 
-        // GET TREE STRUCTURE
+        
         public async Task<List<Location>> GetLocationTreeByProjectAsync(int projectId)
         {
             var locations = await _context.Locations
@@ -71,7 +71,7 @@ namespace planProject.Services
             return lookup[null].ToList();
         }
 
-        // DELETE LOCATION
+       
         public async Task<bool> DeleteLocationAsync(int locationId)
         {
             var location = await _context.Locations

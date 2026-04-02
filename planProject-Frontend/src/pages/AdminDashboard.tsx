@@ -9,11 +9,17 @@ import type { User } from '../services/Userservice'
 import type { Project } from '../services/Projectservice'
 import type { Location } from '../services/Locationservice'
 import type { Plan } from '../services/Planservice'
+import { roleService, permissionService, getPermissions } from '../services/RoleService'
+import type { Role, Permission, CreateRoleDto, UpdateRoleDto } from '../services/RoleService'
+
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const getRoleName = (role: string | { name: string }): string => {
   if (!role) return '—'
   if (typeof role === 'string') return role
   return role.name || '—'
 }
+
 
 const getStatusLabel = (status: string) => {
   const map: Record<string, { label: string; color: string; bg: string }> = {
@@ -27,15 +33,50 @@ const getStatusLabel = (status: string) => {
 }
 
 const LOCATION_TYPES = ['Bloc', 'Étage', 'Appartement', 'Zone']
-type Section = 'dashboard' | 'users' | 'projects' | 'plans'
+type Section = 'dashboard' | 'users' | 'projects' | 'plans' | 'roles'
 
+
+const groupPermissions = (perms: Permission[]): Record<string, Permission[]> =>
+  perms.reduce<Record<string, Permission[]>>((acc, p) => {
+    // Grouper par le nom après le premier underscore
+    const parts = p.name.split('_')
+    const category = parts.length > 1 ? parts[1] : parts[0]
+    
+    // Mapper vers un domaine lisible
+    const domainMap: Record<string, string> = {
+      'Utilisateur'      : '👤 Utilisateurs',
+      'RôleUtilisateur'  : '👤 Utilisateurs',
+      'MotDePasse'       : '🔐 Authentification',
+      'Projet'           : '📁 Projets',
+      'MesProjets'       : '📁 Projets',
+      'TousLesProjets'   : '📁 Projets',
+      'MembreProjet'     : '📁 Projets',
+      'MembresProjet'    : '📁 Projets',
+      'Localisation'     : '📍 Localisations',
+      'ArbreLocalisation': '📍 Localisations',
+      'Plan'             : '📄 Plans',
+      'PlansParLocalisation': '📄 Plans',
+      'Version_Plan'     : '🔄 Versions',
+      'Annotation'       : '✏️ Annotations',
+      'Rôle'             : '🛡️ Rôles & Permissions',
+      'Permission'       : '🛡️ Rôles & Permissions',
+      'JournalAudit'     : '📋 Journal d\'audit',
+    }
+
+    const key = domainMap[category] || '🔧 Général'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(p)
+    return acc
+  }, {})
+
+// ── Notifications ─────────────────────────────────────────────────────────────
 const INITIAL_NOTIFICATIONS = [
-  { id: 1, text: 'Nouvel utilisateur enregistré', time: 'Il y a 5 min', unread: true },
-  { id: 2, text: 'Rôle modifié pour un utilisateur', time: 'Il y a 1h', unread: true },
-  { id: 3, text: 'Utilisateur supprimé avec succès', time: 'Il y a 3h', unread: false },
+  { id: 1, text: 'Nouvel utilisateur enregistré',       time: 'Il y a 5 min', unread: true  },
+  { id: 2, text: 'Rôle modifié pour un utilisateur',    time: 'Il y a 1h',    unread: true  },
+  { id: 3, text: 'Utilisateur supprimé avec succès',    time: 'Il y a 3h',    unread: false },
 ]
 
-// ── LOCATION TREE NODE ──────────────────────────────────────────────────────
+// ── LOCATION TREE NODE ────────────────────────────────────────────────────────
 function LocationTreeNode({
   loc, depth = 0, onDelete, onAddChild, onViewPlans, locationsWithPlans,
 }: {
@@ -48,7 +89,7 @@ function LocationTreeNode({
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasChildren = loc.children && loc.children.length > 0
-  const hasPlans = locationsWithPlans.has(loc.id)
+  const hasPlans    = locationsWithPlans.has(loc.id)
 
   const typeColors: Record<string, { color: string; bg: string }> = {
     Bloc:        { color: '#000000', bg: '#eff6ff' },
@@ -74,48 +115,47 @@ function LocationTreeNode({
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = depth === 0 ? '#fafafa' : 'transparent' }}
       >
         {hasChildren ? (
-          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'
+          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2.5'
+            strokeLinecap='round' strokeLinejoin='round'
             style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
             <polyline points='9 18 15 12 9 6'/>
           </svg>
         ) : <div style={{ width: 12, flexShrink: 0 }} />}
 
-        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke={tc.color} strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ flexShrink: 0 }}>
+        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke={tc.color} strokeWidth='2'
+          strokeLinecap='round' strokeLinejoin='round' style={{ flexShrink: 0 }}>
           <path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/>
         </svg>
 
         <span style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', flex: 1 }}>{loc.name}</span>
 
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-          {/* Bouton Plans — seulement si cette localisation a des plans */}
           {hasPlans && (
-            <button
-              onClick={() => onViewPlans(loc)}
-              title='Voir les plans'
+            <button onClick={() => onViewPlans(loc)} title='Voir les plans'
               style={{ height: 26, padding: '0 10px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: '#1d4ed8', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe' }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff' }}
-            >
+              onMouseEnter={e => e.currentTarget.style.background = '#dbeafe'}
+              onMouseLeave={e => e.currentTarget.style.background = '#eff6ff'}>
               <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
                 <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/>
               </svg>
               Plans
             </button>
           )}
-
           <button onClick={() => onAddChild(loc)} title='Ajouter un enfant'
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#1d4ed8' }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}
-          >
-            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}>
+            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+              <line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/>
+            </svg>
           </button>
           <button onClick={() => onDelete(loc)} title='Supprimer'
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.color = '#ef4444' }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}
-          >
-            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M9 6V4h6v2'/></svg>
+            onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b' }}>
+            <svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+              <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M9 6V4h6v2'/>
+            </svg>
           </button>
         </div>
       </div>
@@ -133,7 +173,7 @@ function LocationTreeNode({
   )
 }
 
-// ── PLANS MODAL ──────────────────────────────────────────────────────────────
+// ── PLANS MODAL ───────────────────────────────────────────────────────────────
 function PlansModal({ location, plans, loading, onClose }: {
   location: Location; plans: Plan[]; loading: boolean; onClose: () => void
 }) {
@@ -141,8 +181,6 @@ function PlansModal({ location, plans, loading, onClose }: {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: 'white', borderRadius: 16, padding: '28px', maxWidth: 560, width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
-
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,13 +196,12 @@ function PlansModal({ location, plans, loading, onClose }: {
           <button onClick={onClose}
             style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.color = '#ef4444' }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#94a3b8' }}
-          >
-            <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
+            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#94a3b8' }}>
+            <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+              <line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/>
+            </svg>
           </button>
         </div>
-
-        {/* Content */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
@@ -184,8 +221,7 @@ function PlansModal({ location, plans, loading, onClose }: {
                   <div key={plan.id}
                     style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', background: '#fafafa', transition: 'box-shadow 0.15s, border-color 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.07)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0' }}
-                  >
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ width: 34, height: 34, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -200,7 +236,6 @@ function PlansModal({ location, plans, loading, onClose }: {
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 700, color: st.color, background: st.bg, padding: '2px 8px', borderRadius: 100, flexShrink: 0 }}>{st.label}</span>
                     </div>
-
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: '#64748b' }}>Version actuelle :</span>
@@ -212,13 +247,11 @@ function PlansModal({ location, plans, loading, onClose }: {
                         </span>
                       )}
                     </div>
-
                     {latestVersion ? (
                       <a href={`http://localhost:5279${latestVersion.filePath}`} target='_blank' rel='noopener noreferrer'
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px', background: '#eff6ff', borderRadius: 8, textDecoration: 'none', color: '#1d4ed8', fontSize: 12, fontWeight: 600, border: '1px solid #bfdbfe', transition: 'background 0.15s' }}
                         onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#dbeafe'}
-                        onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#eff6ff'}
-                      >
+                        onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#eff6ff'}>
                         <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
                           <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/>
                         </svg>
@@ -240,96 +273,132 @@ function PlansModal({ location, plans, loading, onClose }: {
   )
 }
 
-// ── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const [section, setSection] = useState<Section>('dashboard')
 
-  const [users, setUsers] = useState<User[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editEmail, setEditEmail] = useState('')
-  const [editRole, setEditRole] = useState('')
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'Ingenieur' })
-  const [addErrors, setAddErrors] = useState<Record<string, string>>({})
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
-  const [search, setSearch] = useState('')
+  // ── Users ──
+  const [users, setUsers]                   = useState<User[]>([])
+  const [loadingUsers, setLoadingUsers]     = useState(false)
+  const [showDeleteModal, setShowDeleteModal]   = useState(false)
+  const [showEditModal, setShowEditModal]       = useState(false)
+  const [selectedUser, setSelectedUser]         = useState<User | null>(null)
+  const [editName, setEditName]             = useState('')
+  const [editEmail, setEditEmail]           = useState('')
+  const [editRole, setEditRole]             = useState('')
+  const [showAddModal, setShowAddModal]     = useState(false)
+  const [newUser, setNewUser]               = useState({ name: '', email: '', password: '', role: 'Ingenieur' })
+  const [addErrors, setAddErrors]           = useState<Record<string, string>>({})
+  const [openMenuId, setOpenMenuId]         = useState<number | null>(null)
+  const [search, setSearch]                 = useState('')
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(false)
-  const [projectSearch, setProjectSearch] = useState('')
-  const [showAddProjectModal, setShowAddProjectModal] = useState(false)
+  // ── Projects ──
+  const [projects, setProjects]                         = useState<Project[]>([])
+  const [loadingProjects, setLoadingProjects]           = useState(false)
+  const [projectSearch, setProjectSearch]               = useState('')
+  const [showAddProjectModal, setShowAddProjectModal]   = useState(false)
   const [showEditProjectModal, setShowEditProjectModal] = useState(false)
   const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-  const [openProjectMenuId, setOpenProjectMenuId] = useState<number | null>(null)
-  const [newProject, setNewProject] = useState({ name: '', description: '', status: 'Planning' })
-  const [editProject, setEditProject] = useState({ name: '', description: '', status: '' })
-  const [projectErrors, setProjectErrors] = useState<Record<string, string>>({})
+  const [selectedProject, setSelectedProject]           = useState<Project | null>(null)
+  const [openProjectMenuId, setOpenProjectMenuId]       = useState<number | null>(null)
+  const [newProject, setNewProject]                     = useState({ name: '', description: '', status: 'Planning' })
+  const [editProject, setEditProject]                   = useState({ name: '', description: '', status: '' })
+  const [projectErrors, setProjectErrors]               = useState<Record<string, string>>({})
 
-  const [locationProjectId, setLocationProjectId] = useState<number | null>(null)
-  const [locationTree, setLocationTree] = useState<Location[]>([])
-  const [loadingLocations, setLoadingLocations] = useState(false)
-  const [showAddLocationModal, setShowAddLocationModal] = useState(false)
+  // ── Locations ──
+  const [locationProjectId, setLocationProjectId]           = useState<number | null>(null)
+  const [locationTree, setLocationTree]                     = useState<Location[]>([])
+  const [loadingLocations, setLoadingLocations]             = useState(false)
+  const [showAddLocationModal, setShowAddLocationModal]     = useState(false)
   const [showDeleteLocationModal, setShowDeleteLocationModal] = useState(false)
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
-  const [parentLocation, setParentLocation] = useState<Location | null>(null)
-  const [newLocation, setNewLocation] = useState({ name: '', type: 'Bâtiment', projectId: 0, parentId: null as number | null })
-  const [locationErrors, setLocationErrors] = useState<Record<string, string>>({})
+  const [selectedLocation, setSelectedLocation]             = useState<Location | null>(null)
+  const [parentLocation, setParentLocation]                 = useState<Location | null>(null)
+  const [newLocation, setNewLocation]                       = useState({ name: '', type: 'Bâtiment', projectId: 0, parentId: null as number | null })
+  const [locationErrors, setLocationErrors]                 = useState<Record<string, string>>({})
 
-  // Plans
-  const [totalPlans, setTotalPlans] = useState<number | null>(null)
-  const [recentPlans, setRecentPlans] = useState<Plan[]>([])
-  const [locationsWithPlans, setLocationsWithPlans] = useState<Set<number>>(new Set())
-  const [showPlansModal, setShowPlansModal] = useState(false)
-  const [selectedLocationForPlans, setSelectedLocationForPlans] = useState<Location | null>(null)
-  const [plans, setPlans] = useState<Plan[]>([])
-  const [loadingPlans, setLoadingPlans] = useState(false)
+  // ── Plans ──
+  const [totalPlans, setTotalPlans]                               = useState<number | null>(null)
+  const [locationsWithPlans, setLocationsWithPlans]               = useState<Set<number>>(new Set())
+  const [showPlansModal, setShowPlansModal]                       = useState(false)
+  const [selectedLocationForPlans, setSelectedLocationForPlans]   = useState<Location | null>(null)
+  const [plans, setPlans]                                         = useState<Plan[]>([])
+  const [loadingPlans, setLoadingPlans]                           = useState(false)
 
-  const [error, setError] = useState('')
+  // ── Global UI ──
+  const [error, setError]           = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
-  const [showNotif, setShowNotif] = useState(false)
+  const [showNotif, setShowNotif]   = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS)
 
-  const notifRef = useRef<HTMLDivElement>(null)
-  const profileRef = useRef<HTMLDivElement>(null)
-  const menuRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  // ── Rôles & Permissions ──
+  const [roles, setRoles] = useState<Role[]>([])
+const [permissions, setPermissions] = useState<Permission[]>([])
+  const [loadingRoles, setLoadingRoles]           = useState(false)
+  const [showAddRoleModal, setShowAddRoleModal]   = useState(false)
+  const [showEditRoleModal, setShowEditRoleModal] = useState(false)
+  const [showDeleteRoleModal, setShowDeleteRoleModal] = useState(false)
+  const [selectedRole, setSelectedRole]           = useState<Role | null>(null)
+  const [roleFormName, setRoleFormName]           = useState('')
+  const [roleFormPermIds, setRoleFormPermIds]     = useState<Set<number>>(new Set())
+  const [roleNameError, setRoleNameError]         = useState('')
+  const [openRoleMenuId, setOpenRoleMenuId]       = useState<number | null>(null)
+  const roleMenuRefs = useRef<Record<number, HTMLDivElement | null>>({})
+
+  // ── Refs ──
+  const notifRef        = useRef<HTMLDivElement>(null)
+  const profileRef      = useRef<HTMLDivElement>(null)
+  const menuRefs        = useRef<Record<number, HTMLDivElement | null>>({})
   const projectMenuRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
-  const token = getToken()
+  // ── Auth ──
+  const token       = getToken()
   const currentUser = token ? (() => { try { return decodeToken(token) } catch { return null } })() : null
   const currentEmail = currentUser?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || ''
-  const currentRole = currentUser?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || ''
-  const unreadCount = notifications.filter(n => n.unread).length
-  const displayName = currentEmail.split('@')[0] || 'Admin'
+  const currentRole  = currentUser?.['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || ''
+  const unreadCount  = notifications.filter(n => n.unread).length
+  const displayName  = currentEmail.split('@')[0] || 'Admin'
 
+  // ── Fermeture menus au clic extérieur ──
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false)
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfile(false)
-      if (openMenuId !== null) { const el = menuRefs.current[openMenuId]; if (el && !el.contains(e.target as Node)) setOpenMenuId(null) }
-      if (openProjectMenuId !== null) { const el = projectMenuRefs.current[openProjectMenuId]; if (el && !el.contains(e.target as Node)) setOpenProjectMenuId(null) }
+      if (openMenuId !== null) {
+        const el = menuRefs.current[openMenuId]
+        if (el && !el.contains(e.target as Node)) setOpenMenuId(null)
+      }
+      if (openProjectMenuId !== null) {
+        const el = projectMenuRefs.current[openProjectMenuId]
+        if (el && !el.contains(e.target as Node)) setOpenProjectMenuId(null)
+      }
+      if (openRoleMenuId !== null) {
+        const el = roleMenuRefs.current[openRoleMenuId]
+        if (el && !el.contains(e.target as Node)) setOpenRoleMenuId(null)
+      }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
-  }, [openMenuId, openProjectMenuId])
+  }, [openMenuId, openProjectMenuId, openRoleMenuId])
 
+  // ── Users ──
   const fetchUsers = async () => {
     setLoadingUsers(true); setError('')
-    try { setUsers(await userService.getAll()) } catch (e: any) { setError(e.message) } finally { setLoadingUsers(false) }
+    try { setUsers(await userService.getAll()) }
+    catch (e: any) { setError(e.message) }
+    finally { setLoadingUsers(false) }
   }
   useEffect(() => { if (section === 'users' || section === 'dashboard') fetchUsers() }, [section])
 
   const handleDelete = async () => {
     if (!selectedUser) return; setActionLoading(true)
-    try { await userService.delete(selectedUser.id); setUsers(u => u.filter(x => x.id !== selectedUser.id)); setShowDeleteModal(false); showSuccess('Utilisateur supprimé avec succès') }
-    catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+    try {
+      await userService.delete(selectedUser.id)
+      setUsers(u => u.filter(x => x.id !== selectedUser.id))
+      setShowDeleteModal(false); showSuccess('Utilisateur supprimé avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
 
   const handleEdit = async () => {
@@ -348,54 +417,77 @@ export default function AdminDashboard() {
     else if (!/^[^@]+@[^@]+\.[^@]+$/.test(newUser.email)) errs.email = 'Email invalide'
     if (!newUser.password.trim()) errs.password = 'Mot de passe requis'
     else if (newUser.password.length < 6) errs.password = 'Minimum 6 caractères'
-    setAddErrors(errs); if (Object.keys(errs).length > 0) return; setActionLoading(true)
-    try { await userService.create(newUser); await fetchUsers(); setShowAddModal(false); setNewUser({ name: '', email: '', password: '', role: 'Ingenieur' }); setAddErrors({}); showSuccess('Utilisateur ajouté avec succès') }
-    catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+    setAddErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setActionLoading(true)
+    try {
+      await userService.create(newUser)
+      await fetchUsers()
+      setShowAddModal(false)
+      setNewUser({ name: '', email: '', password: '', role: 'Ingenieur' })
+      setAddErrors({})
+      showSuccess('Utilisateur ajouté avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
 
+  // ── Projects ──
   const fetchProjects = async () => {
     setLoadingProjects(true); setError('')
-    try { setProjects(await projectService.getAll()) } catch (e: any) { setError(e.message) } finally { setLoadingProjects(false) }
+    try { setProjects(await projectService.getAll()) }
+    catch (e: any) { setError(e.message) }
+    finally { setLoadingProjects(false) }
   }
   useEffect(() => { if (section === 'projects' || section === 'dashboard') fetchProjects() }, [section])
 
   useEffect(() => {
-    if (section === 'dashboard') {
-      planService.getTotalCount()
-        .then(count => setTotalPlans(count))
-        .catch(() => {})
-    }
+    if (section === 'dashboard') planService.getTotalCount().then(setTotalPlans).catch(() => {})
   }, [section])
 
   const handleDeleteProject = async () => {
     if (!selectedProject) return; setActionLoading(true)
-    try { await projectService.delete(selectedProject.id); setProjects(p => p.filter(x => x.id !== selectedProject.id)); setShowDeleteProjectModal(false); showSuccess('Projet supprimé avec succès') }
-    catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+    try {
+      await projectService.delete(selectedProject.id)
+      setProjects(p => p.filter(x => x.id !== selectedProject.id))
+      setShowDeleteProjectModal(false); showSuccess('Projet supprimé avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
 
   const handleEditProject = async () => {
     if (!selectedProject) return
-    const errs: Record<string, string> = {}; if (!editProject.name.trim()) errs.name = 'Nom requis'
-    setProjectErrors(errs); if (Object.keys(errs).length > 0) return; setActionLoading(true)
-    try { await projectService.update(selectedProject.id, editProject); await fetchProjects(); setShowEditProjectModal(false); showSuccess('Projet modifié avec succès') }
-    catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+    const errs: Record<string, string> = {}
+    if (!editProject.name.trim()) errs.name = 'Nom requis'
+    setProjectErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setActionLoading(true)
+    try {
+      await projectService.update(selectedProject.id, editProject)
+      await fetchProjects(); setShowEditProjectModal(false); showSuccess('Projet modifié avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
 
   const handleAddProject = async () => {
-    const errs: Record<string, string> = {}; if (!newProject.name.trim()) errs.name = 'Nom requis'
-    setProjectErrors(errs); if (Object.keys(errs).length > 0) return; setActionLoading(true)
-    try { await projectService.create(newProject); await fetchProjects(); setShowAddProjectModal(false); setNewProject({ name: '', description: '', status: 'Planning' }); showSuccess('Projet ajouté avec succès') }
-    catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+    const errs: Record<string, string> = {}
+    if (!newProject.name.trim()) errs.name = 'Nom requis'
+    setProjectErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setActionLoading(true)
+    try {
+      await projectService.create(newProject)
+      await fetchProjects()
+      setShowAddProjectModal(false)
+      setNewProject({ name: '', description: '', status: 'Planning' })
+      showSuccess('Projet ajouté avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
 
+  // ── Locations ──
   const fetchLocationTree = async (projectId: number) => {
     setLoadingLocations(true); setError('')
     try {
       const tree = await locationService.getTree(projectId)
       setLocationTree(tree)
-      // Vérifier quelles localisations ont des plans
       const locWithPlans = await planService.getLocationsWithPlans()
-      setLocationsWithPlans(new Set(locWithPlans.filter(r => r.hasPlans).map(r => r.locationId)))
+      setLocationsWithPlans(new Set(locWithPlans.filter((r: any) => r.hasPlans).map((r: any) => r.locationId)))
     } catch (e: any) { setError(e.message) } finally { setLoadingLocations(false) }
   }
 
@@ -404,11 +496,15 @@ export default function AdminDashboard() {
     if (!newLocation.name.trim()) errs.name = 'Nom requis'
     if (!newLocation.type) errs.type = 'Type requis'
     if (!locationProjectId) errs.project = 'Projet requis'
-    setLocationErrors(errs); if (Object.keys(errs).length > 0) return; setActionLoading(true)
+    setLocationErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setActionLoading(true)
     try {
       await locationService.create({ name: newLocation.name, type: newLocation.type, projectId: locationProjectId!, parentId: newLocation.parentId })
-      await fetchLocationTree(locationProjectId!); setShowAddLocationModal(false)
-      setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null }); setParentLocation(null)
+      await fetchLocationTree(locationProjectId!)
+      setShowAddLocationModal(false)
+      setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null })
+      setParentLocation(null)
       showSuccess('Localisation ajoutée avec succès')
     } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
   }
@@ -423,10 +519,14 @@ export default function AdminDashboard() {
   }
 
   const openAddChildModal = (parent: Location) => {
-    setParentLocation(parent); setNewLocation({ name: '', type: 'Appartement', projectId: locationProjectId!, parentId: parent.id }); setLocationErrors({}); setShowAddLocationModal(true)
+    setParentLocation(parent)
+    setNewLocation({ name: '', type: 'Appartement', projectId: locationProjectId!, parentId: parent.id })
+    setLocationErrors({}); setShowAddLocationModal(true)
   }
   const openAddRootModal = () => {
-    setParentLocation(null); setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null }); setLocationErrors({}); setShowAddLocationModal(true)
+    setParentLocation(null)
+    setNewLocation({ name: '', type: 'Bloc', projectId: locationProjectId!, parentId: null })
+    setLocationErrors({}); setShowAddLocationModal(true)
   }
 
   const handleViewPlans = async (loc: Location) => {
@@ -435,6 +535,67 @@ export default function AdminDashboard() {
     catch (e: any) { setError(e.message) } finally { setLoadingPlans(false) }
   }
 
+  // ── Rôles ──
+  const fetchRoles = async () => {
+    setLoadingRoles(true); setError('')
+    try {
+      const [r, p] = await Promise.all([roleService.getAll(), permissionService.getAll()])
+      setRoles(r); setPermissions(p)
+    } catch (e: any) { setError(e.message) } finally { setLoadingRoles(false) }
+  }
+  useEffect(() => { if (section === 'roles') fetchRoles() }, [section])
+
+  const openAddRole = () => {
+    setRoleFormName(''); setRoleFormPermIds(new Set()); setRoleNameError('')
+    setShowAddRoleModal(true)
+  }
+  const openEditRole = (role: Role) => {
+    setSelectedRole(role); setRoleFormName(role.name)
+    setRoleFormPermIds(new Set(getPermissions(role) .map(p => p.id)))
+    setRoleNameError(''); setOpenRoleMenuId(null); setShowEditRoleModal(true)
+  }
+  const openDeleteRole = (role: Role) => {
+    setSelectedRole(role); setOpenRoleMenuId(null); setShowDeleteRoleModal(true)
+  }
+
+  const handleCreateRole = async () => {
+    if (!roleFormName.trim()) { setRoleNameError('Le nom est requis'); return }
+    setActionLoading(true)
+    try {
+      await roleService.create({ name: roleFormName.trim(), permissionIds: [...roleFormPermIds] })
+      await fetchRoles(); setShowAddRoleModal(false); showSuccess('Rôle créé avec succès')
+    } catch (e: any) { setRoleNameError(e.message) } finally { setActionLoading(false) }
+  }
+
+  const handleUpdateRole = async () => {
+    if (!selectedRole || !roleFormName.trim()) { setRoleNameError('Le nom est requis'); return }
+    setActionLoading(true)
+    try {
+      await roleService.update(selectedRole.id, { name: roleFormName.trim(), permissionIds: [...roleFormPermIds] })
+      await fetchRoles(); setShowEditRoleModal(false); showSuccess('Rôle modifié avec succès')
+    } catch (e: any) { setRoleNameError(e.message) } finally { setActionLoading(false) }
+  }
+
+  const handleDeleteRole = async () => {
+    if (!selectedRole) return; setActionLoading(true)
+    try {
+      await roleService.delete(selectedRole.id)
+      setRoles(r => r.filter(x => x.id !== selectedRole.id))
+      setShowDeleteRoleModal(false); showSuccess('Rôle supprimé avec succès')
+    } catch (e: any) { setError(e.message) } finally { setActionLoading(false) }
+  }
+
+  const toggleRolePerm = (id: number) =>
+    setRoleFormPermIds(prev => {
+      const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
+    })
+
+  const toggleRolePermGroup = (ids: number[], checked: boolean) =>
+    setRoleFormPermIds(prev => {
+      const n = new Set(prev); ids.forEach(id => checked ? n.add(id) : n.delete(id)); return n
+    })
+
+  // ── Misc ──
   const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000) }
   const markAllRead = () => setNotifications(n => n.map(x => ({ ...x, unread: false })))
   const handleLogout = () => { removeToken(); navigate('/login') }
@@ -458,31 +619,51 @@ export default function AdminDashboard() {
 
   const navItems = [
     { id: 'dashboard', label: 'Tableau de bord', icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><rect x='3' y='3' width='7' height='7'/><rect x='14' y='3' width='7' height='7'/><rect x='14' y='14' width='7' height='7'/><rect x='3' y='14' width='7' height='7'/></svg> },
-    { id: 'users', label: 'Utilisateurs', icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg> },
-    { id: 'projects', label: 'Projets', icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/></svg> },
+    { id: 'users',     label: 'Utilisateurs',    icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg> },
+    { id: 'projects',  label: 'Projets',          icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/></svg> },
+    { id: 'roles',     label: 'Rôles & Permissions', icon: <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg> },
   ]
 
-  const ThreeDotMenu = ({ id, onEdit, onDelete, refs }: { id: number; onEdit: () => void; onDelete: () => void; refs: React.MutableRefObject<Record<number, HTMLDivElement | null>> }) => {
+  const ThreeDotMenu = ({ id, onEdit, onDelete, refs }: {
+    id: number; onEdit: () => void; onDelete: () => void
+    refs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
+  }) => {
     const isOpen = openMenuId === id || openProjectMenuId === id
-    const toggle = () => { if (refs === menuRefs) setOpenMenuId(openMenuId === id ? null : id); else setOpenProjectMenuId(openProjectMenuId === id ? null : id) }
+    const toggle = () => {
+      if (refs === menuRefs) setOpenMenuId(openMenuId === id ? null : id)
+      else setOpenProjectMenuId(openProjectMenuId === id ? null : id)
+    }
     return (
       <div ref={el => { refs.current[id] = el }} style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
-        <button onClick={toggle} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: isOpen ? '#f1f5f9' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', transition: 'all 0.15s' }}
+        <button onClick={toggle}
+          style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: isOpen ? '#f1f5f9' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', transition: 'all 0.15s' }}
           onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569' }}
           onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' } }}>
-          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'><circle cx='12' cy='5' r='1.5'/><circle cx='12' cy='12' r='1.5'/><circle cx='12' cy='19' r='1.5'/></svg>
+          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
+            <circle cx='12' cy='5' r='1.5'/><circle cx='12' cy='12' r='1.5'/><circle cx='12' cy='19' r='1.5'/>
+          </svg>
         </button>
         {isOpen && (
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, width: 160, background: '#ffffff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden', zIndex: 30 }}>
-            <button onClick={onEdit} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#0f172a', fontWeight: 500, textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#64748b' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/><path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'/></svg>
+            <button onClick={onEdit}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#0f172a', fontWeight: 500, textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#64748b' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/>
+                <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'/>
+              </svg>
               Modifier
             </button>
             <div style={{ height: 1, background: '#f1f5f9', margin: '0 10px' }} />
-            <button onClick={onDelete} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444', fontWeight: 500, textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg>
+            <button onClick={onDelete}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444', fontWeight: 500, textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/>
+                <path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+              </svg>
               Supprimer
             </button>
           </div>
@@ -491,6 +672,9 @@ export default function AdminDashboard() {
     )
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc', fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif' }}>
 
@@ -499,7 +683,11 @@ export default function AdminDashboard() {
         <div style={{ padding: '24px 20px', borderBottom: '1px solid #f1f5f9' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width='18' height='18' viewBox='0 0 20 20' fill='none'><rect x='2' y='2' width='7' height='9' rx='1' stroke='white' strokeWidth='1.5'/><rect x='11' y='2' width='7' height='5' rx='1' stroke='white' strokeWidth='1.5'/><rect x='2' y='13' width='16' height='5' rx='1' stroke='white' strokeWidth='1.5'/></svg>
+              <svg width='18' height='18' viewBox='0 0 20 20' fill='none'>
+                <rect x='2' y='2' width='7' height='9' rx='1' stroke='white' strokeWidth='1.5'/>
+                <rect x='11' y='2' width='7' height='5' rx='1' stroke='white' strokeWidth='1.5'/>
+                <rect x='2' y='13' width='16' height='5' rx='1' stroke='white' strokeWidth='1.5'/>
+              </svg>
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', letterSpacing: '-0.3px' }}>Axia Plan</div>
@@ -507,23 +695,30 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+
         <nav style={{ flex: 1, padding: '16px 12px' }}>
           {navItems.map(item => {
             const active = section === item.id
             return (
-              <button key={item.id} onClick={() => { setSection(item.id as Section); setLocationProjectId(null); setLocationTree([]) }}
+              <button key={item.id}
+                onClick={() => { setSection(item.id as Section); setLocationProjectId(null); setLocationTree([]) }}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: active ? '#eff6ff' : 'transparent', color: active ? '#1d4ed8' : '#64748b', fontWeight: active ? 700 : 500, fontSize: 14, marginBottom: 4, transition: 'all 0.15s', textAlign: 'left' }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f8fafc' }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-              >{item.icon}{item.label}</button>
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>
+                {item.icon}{item.label}
+              </button>
             )
           })}
         </nav>
+
         <div style={{ padding: '16px 12px', borderTop: '1px solid #f1f5f9' }}>
           <button onClick={handleLogout}
             style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'transparent', color: '#000000', fontWeight: 600, fontSize: 14, transition: 'background 0.15s', textAlign: 'left' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>
+            onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+              <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/>
+            </svg>
             Déconnexion
           </button>
         </div>
@@ -538,19 +733,31 @@ export default function AdminDashboard() {
             <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Axia Plan</span>
             <span style={{ color: '#cbd5e1', fontSize: 12 }}>/</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-              {section === 'dashboard' ? 'Tableau de bord' : section === 'users' ? 'Utilisateurs' : section === 'plans' ? 'Plans' : locationProjectId ? projects.find(p => p.id === locationProjectId)?.name || 'Projets' : 'Projets'}
+              {section === 'dashboard' ? 'Tableau de bord'
+                : section === 'users' ? 'Utilisateurs'
+                : section === 'roles' ? 'Rôles & Permissions'
+                : section === 'plans' ? 'Plans'
+                : locationProjectId ? projects.find(p => p.id === locationProjectId)?.name || 'Projets'
+                : 'Projets'}
             </span>
             {section === 'plans' && selectedLocationForPlans && (
-              <><span style={{ color: '#cbd5e1', fontSize: 12 }}>/</span><span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedLocationForPlans.name}</span></>
+              <>
+                <span style={{ color: '#cbd5e1', fontSize: 12 }}>/</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedLocationForPlans.name}</span>
+              </>
             )}
           </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Notifications */}
             <div ref={notifRef} style={{ position: 'relative' }}>
               <button onClick={() => { setShowNotif(!showNotif); setShowProfile(false) }}
                 style={{ position: 'relative', width: 38, height: 38, borderRadius: 9, border: '1px solid transparent', background: showNotif ? '#f1f5f9' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseEnter={e => { if (!showNotif) e.currentTarget.style.background = '#f1f5f9' }}
                 onMouseLeave={e => { if (!showNotif) e.currentTarget.style.background = 'transparent' }}>
-                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#64748b' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/></svg>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#64748b' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                  <path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/>
+                </svg>
                 {unreadCount > 0 && <span style={{ position: 'absolute', top: 7, right: 7, width: 8, height: 8, borderRadius: '50%', background: '#ef4444', border: '2px solid white' }} />}
               </button>
               {showNotif && (
@@ -574,7 +781,10 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+
             <div style={{ width: 1, height: 22, background: '#e2e8f0', margin: '0 4px' }} />
+
+            {/* Profile */}
             <div ref={profileRef} style={{ position: 'relative' }}>
               <button onClick={() => { setShowProfile(!showProfile); setShowNotif(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '5px 10px 5px 5px', borderRadius: 10, border: '1px solid transparent', cursor: 'pointer', background: showProfile ? '#f1f5f9' : 'transparent', transition: 'all 0.15s' }}
@@ -585,7 +795,9 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{currentRole}</div>
                 </div>
-                <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round' style={{ marginLeft: 2 }}><polyline points='6 9 12 15 18 9'/></svg>
+                <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round' style={{ marginLeft: 2 }}>
+                  <polyline points='6 9 12 15 18 9'/>
+                </svg>
               </button>
               {showProfile && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 220, background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 16px 48px rgba(0,0,0,0.12)', overflow: 'hidden', zIndex: 100 }}>
@@ -599,9 +811,13 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div style={{ borderTop: '1px solid #f1f5f9' }}>
-                    <button onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#64748b', fontWeight: 600, textAlign: 'left' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>
+                    <button onClick={handleLogout}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#64748b', fontWeight: 600, textAlign: 'left' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                        <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/>
+                      </svg>
                       Déconnexion
                     </button>
                   </div>
@@ -613,6 +829,8 @@ export default function AdminDashboard() {
 
         {/* ── MAIN CONTENT ── */}
         <main style={{ flex: 1, padding: '32px 36px', paddingTop: 96 }}>
+
+          {/* Toast succès */}
           {successMsg && (
             <div style={{ position: 'fixed', top: 76, right: 24, zIndex: 100, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
               <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#16a34a' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><path d='M20 6L9 17l-5-5'/></svg>
@@ -620,7 +838,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* DASHBOARD */}
+          {/* ════════ DASHBOARD ════════ */}
           {section === 'dashboard' && (
             <div>
               <div style={{ marginBottom: 32 }}>
@@ -628,8 +846,13 @@ export default function AdminDashboard() {
                 <p style={{ color: '#64748b', fontSize: 14 }}>Vue globale de la plateforme Axia Plan.</p>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 32 }}>
-                {[{ label: 'Utilisateurs', value: users.length, action: () => setSection('users') }, { label: 'Projets', value: projects.length, action: () => setSection('projects') }, { label: 'Plans', value: totalPlans !== null ? totalPlans : '…', action: () => {} }].map((s, i) => (
-                  <div key={i} onClick={s.action} style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px 28px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+                {[
+                  { label: 'Utilisateurs', value: users.length,                      action: () => setSection('users') },
+                  { label: 'Projets',      value: projects.length,                   action: () => setSection('projects') },
+                  { label: 'Plans',        value: totalPlans !== null ? totalPlans : '…', action: () => {} },
+                ].map((s, i) => (
+                  <div key={i} onClick={s.action}
+                    style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px 28px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
                     onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
                     onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'}>
                     <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{s.label}</span></div>
@@ -637,23 +860,21 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              {/* ── Activité récente — pleine largeur ── */}
               <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '24px 28px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
                   <div style={{ width: 28, height: 28, borderRadius: 7, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>
+                    <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                      <circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/>
+                    </svg>
                   </div>
                   <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Activité récente</h2>
                 </div>
-                {/* Les logs d'audit seront affichés ici quand le backend sera prêt */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 10 }}>
-                  
-                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 10 }} />
               </div>
             </div>
           )}
 
-          {/* USERS */}
+          {/* ════════ USERS ════════ */}
           {section === 'users' && (
             <div>
               <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
@@ -663,43 +884,59 @@ export default function AdminDashboard() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ position: 'relative' }}>
-                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
+                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                      <circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/>
+                    </svg>
                     <input type='text' placeholder='Rechercher...' value={search} onChange={e => setSearch(e.target.value)}
                       style={{ paddingLeft: 34, paddingRight: search ? 32 : 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#0f172a', background: '#ffffff', width: 220, boxSizing: 'border-box' }}
                       onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-                    {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>}
+                    {search && (
+                      <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}>
+                        <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
+                      </button>
+                    )}
                   </div>
-                  <button onClick={() => setShowAddModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#1e40af'} onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
-                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+                  <button onClick={() => setShowAddModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#1e40af'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
+                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                      <line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/>
+                    </svg>
                     Ajouter
                   </button>
                 </div>
               </div>
+
               {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
+
               <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr 48px', padding: '12px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                   {['Nom', 'Email', 'Rôle', ''].map(h => <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
                 </div>
-                {loadingUsers ? <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
-                : filteredUsers.length === 0 ? <div style={{ padding: '48px', textAlign: 'center' }}><p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{search ? `Aucun résultat pour « ${search} »` : 'Aucun utilisateur trouvé'}</p></div>
-                : filteredUsers.map((u, i) => (
-                  <div key={u.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredUsers.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#fafafa'}
-                    onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
-                    <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 14 }}>{u.name}</span>
-                    <span style={{ color: '#64748b', fontSize: 13 }}>{u.email}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{getRoleName(u.role) || '—'}</span>
-                    <ThreeDotMenu id={u.id} refs={menuRefs}
-                      onEdit={() => { setSelectedUser(u); setEditName(u.name); setEditEmail(u.email); setEditRole(getRoleName(u.role)); setShowEditModal(true); setOpenMenuId(null) }}
-                      onDelete={() => { setSelectedUser(u); setShowDeleteModal(true); setOpenMenuId(null) }} />
-                  </div>
-                ))}
+                {loadingUsers
+                  ? <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
+                  : filteredUsers.length === 0
+                    ? <div style={{ padding: '48px', textAlign: 'center' }}><p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{search ? `Aucun résultat pour « ${search} »` : 'Aucun utilisateur trouvé'}</p></div>
+                    : filteredUsers.map((u, i) => (
+                      <div key={u.id}
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredUsers.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#fafafa'}
+                        onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
+                        <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 14 }}>{u.name}</span>
+                        <span style={{ color: '#64748b', fontSize: 13 }}>{u.email}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{getRoleName(u.role) || '—'}</span>
+                        <ThreeDotMenu id={u.id} refs={menuRefs}
+                          onEdit={() => { setSelectedUser(u); setEditName(u.name); setEditEmail(u.email); setEditRole(getRoleName(u.role)); setShowEditModal(true); setOpenMenuId(null) }}
+                          onDelete={() => { setSelectedUser(u); setShowDeleteModal(true); setOpenMenuId(null) }} />
+                      </div>
+                    ))
+                }
               </div>
             </div>
           )}
 
-          {/* PROJECTS */}
+          {/* ════════ PROJECTS ════════ */}
           {section === 'projects' && (
             <div>
               {!locationProjectId ? (
@@ -709,37 +946,63 @@ export default function AdminDashboard() {
                       <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: 6 }}>Projets</h1>
                       <p style={{ color: '#64748b', fontSize: 14 }}>Cliquez sur un projet pour gérer ses localisations.</p>
                     </div>
-                    <div style={{ position: 'relative' }}>
-                      <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>
-                      <input type='text' placeholder='Rechercher...' value={projectSearch} onChange={e => setProjectSearch(e.target.value)}
-                        style={{ paddingLeft: 34, paddingRight: projectSearch ? 32 : 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#0f172a', background: '#ffffff', width: 220, boxSizing: 'border-box' }}
-                        onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-                      {projectSearch && <button onClick={() => setProjectSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='#94a3b8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                          <circle cx='11' cy='11' r='8'/><line x1='21' y1='21' x2='16.65' y2='16.65'/>
+                        </svg>
+                        <input type='text' placeholder='Rechercher...' value={projectSearch} onChange={e => setProjectSearch(e.target.value)}
+                          style={{ paddingLeft: 34, paddingRight: projectSearch ? 32 : 14, paddingTop: 10, paddingBottom: 10, fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#0f172a', background: '#ffffff', width: 220, boxSizing: 'border-box' }}
+                          onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                        {projectSearch && (
+                          <button onClick={() => setProjectSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: 2 }}>
+                            <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
+                          </button>
+                        )}
+                      </div>
+                      <button onClick={() => setShowAddProjectModal(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#1e40af'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
+                        <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                          <line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/>
+                        </svg>
+                        Nouveau projet
+                      </button>
                     </div>
                   </div>
+
                   {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
+
                   <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '12px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                       {['Nom', 'Description', 'Statut', 'Créé le', ''].map(h => <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
                     </div>
-                    {loadingProjects ? <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
-                    : filteredProjects.length === 0 ? <div style={{ padding: '48px', textAlign: 'center' }}><p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{projectSearch ? `Aucun résultat pour « ${projectSearch} »` : 'Aucun projet trouvé'}</p></div>
-                    : filteredProjects.map((p, i) => { const st = getStatusLabel(p.status); return (
-                      <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredProjects.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#eff6ff'}
-                        onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
-                        onClick={() => { setLocationProjectId(p.id); setLocationTree([]); setLocationsWithPlans(new Set()); fetchLocationTree(p.id) }}>
-                        <span style={{ fontWeight: 700, color: '#64748b', fontSize: 14 }}>{p.name}</span>
-                        <span style={{ color: '#64748b', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>{p.description || '—'}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: st.color, padding: '3px 10px', borderRadius: 100, display: 'inline-block' }}>{st.label}</span>
-                        <span style={{ color: '#94a3b8', fontSize: 12 }}>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}</span>
-                        <div onClick={e => e.stopPropagation()}>
-                          <ThreeDotMenu id={p.id} refs={projectMenuRefs}
-                            onEdit={() => { setSelectedProject(p); setEditProject({ name: p.name, description: p.description || '', status: p.status }); setShowEditProjectModal(true); setOpenProjectMenuId(null) }}
-                            onDelete={() => { setSelectedProject(p); setShowDeleteProjectModal(true); setOpenProjectMenuId(null) }} />
-                        </div>
-                      </div>
-                    )})}
+                    {loadingProjects
+                      ? <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
+                      : filteredProjects.length === 0
+                        ? <div style={{ padding: '48px', textAlign: 'center' }}><p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>{projectSearch ? `Aucun résultat pour « ${projectSearch} »` : 'Aucun projet trouvé'}</p></div>
+                        : filteredProjects.map((p, i) => {
+                          const st = getStatusLabel(p.status)
+                          return (
+                            <div key={p.id}
+                              style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 48px', padding: '15px 24px', borderBottom: i < filteredProjects.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s', cursor: 'pointer' }}
+                              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#eff6ff'}
+                              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
+                              onClick={() => { setLocationProjectId(p.id); setLocationTree([]); setLocationsWithPlans(new Set()); fetchLocationTree(p.id) }}>
+                              <span style={{ fontWeight: 700, color: '#64748b', fontSize: 14 }}>{p.name}</span>
+                              <span style={{ color: '#64748b', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>{p.description || '—'}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: st.color, padding: '3px 10px', borderRadius: 100, display: 'inline-block' }}>{st.label}</span>
+                              <span style={{ color: '#94a3b8', fontSize: 12 }}>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR') : '—'}</span>
+                              <div onClick={e => e.stopPropagation()}>
+                                <ThreeDotMenu id={p.id} refs={projectMenuRefs}
+                                  onEdit={() => { setSelectedProject(p); setEditProject({ name: p.name, description: p.description || '', status: p.status }); setShowEditProjectModal(true); setOpenProjectMenuId(null) }}
+                                  onDelete={() => { setSelectedProject(p); setShowDeleteProjectModal(true); setOpenProjectMenuId(null) }} />
+                              </div>
+                            </div>
+                          )
+                        })
+                    }
                   </div>
                 </>
               ) : (
@@ -748,7 +1011,8 @@ export default function AdminDashboard() {
                     <div>
                       <button onClick={() => { setLocationProjectId(null); setLocationTree([]) }}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600, padding: '0 0 10px', marginBottom: 4 }}
-                        onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+                        onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
                         <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><polyline points='15 18 9 12 15 6'/></svg>
                         Retour aux projets
                       </button>
@@ -757,8 +1021,11 @@ export default function AdminDashboard() {
                     </div>
                     <button onClick={openAddRootModal}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap', marginTop: 30 }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#1e40af'} onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
-                      <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+                      onMouseEnter={e => e.currentTarget.style.background = '#1e40af'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
+                      <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                        <line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/>
+                      </svg>
                       Ajouter une localisation
                     </button>
                   </div>
@@ -774,7 +1041,9 @@ export default function AdminDashboard() {
                       <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
                     ) : locationTree.length === 0 ? (
                       <div style={{ padding: '32px', textAlign: 'center' }}>
-                        <svg width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>
+                        <svg width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}>
+                          <path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/>
+                        </svg>
                         <p style={{ color: '#94a3b8', fontSize: 14, margin: '0 0 12px' }}>Aucune localisation pour ce projet</p>
                         <button onClick={openAddRootModal} style={{ padding: '9px 18px', background: '#1d4ed8', color: 'white', fontWeight: 600, fontSize: 13, borderRadius: 8, border: 'none', cursor: 'pointer' }}>Créer la première localisation</button>
                       </div>
@@ -795,19 +1064,304 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ── PLANS PAGE ── */}
+          {/* ════════ RÔLES & PERMISSIONS ════════ */}
+          {section === 'roles' && (() => {
+            const grouped = groupPermissions(permissions)
+            return (
+              <div>
+                {/* En-tête */}
+                <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <div>
+                    <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', marginBottom: 6 }}>Rôles & Permissions</h1>
+                    <p style={{ color: '#64748b', fontSize: 14 }}>{roles.length} rôle{roles.length !== 1 ? 's' : ''} · {permissions.length} permission{permissions.length !== 1 ? 's' : ''}</p>
+                  </div>
+                  <button onClick={openAddRole}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 13, borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(29,78,216,0.25)', whiteSpace: 'nowrap' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#1e40af'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
+                    <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                      <line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/>
+                    </svg>
+                    Nouveau rôle
+                  </button>
+                </div>
+
+                {error && <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, color: '#b91c1c', fontSize: 13 }}>⚠ {error}</div>}
+
+                {/* Tableau */}
+                <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 48px', padding: '12px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    {['Rôle', 'Permissions attribuées', ''].map(h => (
+                      <span key={h} style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+                    ))}
+                  </div>
+
+                  {loadingRoles ? (
+                    <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement...</div>
+                  ) : roles.length === 0 ? (
+                    <div style={{ padding: '48px', textAlign: 'center' }}>
+                      <svg width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 12px', display: 'block' }}>
+                        <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/>
+                      </svg>
+                      <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Aucun rôle créé</p>
+                    </div>
+                  ) : roles.map((role, idx) => (
+                    <div key={role.id}
+                      style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 48px', padding: '15px 24px', borderBottom: idx < roles.length - 1 ? '1px solid #f1f5f9' : 'none', alignItems: 'center', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#fafafa'}
+                      onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}>
+
+                      {/* Nom du rôle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 9, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                            <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/>
+                          </svg>
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{role.name}</p>
+                          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{getPermissions(role).length} permission{getPermissions(role).length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+
+                      {/* Badges permissions */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {getPermissions(role) .length === 0
+                          ? <span style={{ fontSize: 11, color: '#cbd5e1', fontStyle: 'italic' }}>Aucune permission</span>
+                          : getPermissions(role) .slice(0, 5).map(p => (
+                            <span key={p.id} style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', padding: '2px 9px', borderRadius: 100, border: '1px solid #bfdbfe' }}>{p.name}</span>
+                          ))
+                        }
+                        {getPermissions(role).length > 5 && (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 9px', borderRadius: 100 }}>+{getPermissions(role).length - 5}</span>
+                        )}
+                      </div>
+
+                      {/* Menu 3 points */}
+                      <div ref={el => { roleMenuRefs.current[role.id] = el }} style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                        <button onClick={() => setOpenRoleMenuId(openRoleMenuId === role.id ? null : role.id)}
+                          style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: openRoleMenuId === role.id ? '#f1f5f9' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', transition: 'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569' }}
+                          onMouseLeave={e => { if (openRoleMenuId !== role.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' } }}>
+                          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'>
+                            <circle cx='12' cy='5' r='1.5'/><circle cx='12' cy='12' r='1.5'/><circle cx='12' cy='19' r='1.5'/>
+                          </svg>
+                        </button>
+                        {openRoleMenuId === role.id && (
+                          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, width: 160, background: '#ffffff', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', overflow: 'hidden', zIndex: 30 }}>
+                            <button onClick={() => openEditRole(role)}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#0f172a', fontWeight: 500, textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#64748b' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                <path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'/>
+                                <path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'/>
+                              </svg>
+                              Modifier
+                            </button>
+                            <div style={{ height: 1, background: '#f1f5f9', margin: '0 10px' }} />
+                            <button onClick={() => openDeleteRole(role)}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444', fontWeight: 500, textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/>
+                                <path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+                              </svg>
+                              Supprimer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── MODAL CRÉATION / MODIFICATION RÔLE ── */}
+                {(showAddRoleModal || showEditRoleModal) && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={e => { if (e.target === e.currentTarget) { setShowAddRoleModal(false); setShowEditRoleModal(false) } }}>
+                    <div style={{ background: 'white', borderRadius: 16, padding: '32px', width: '90%', maxWidth: 540, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+
+                      {/* Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                              <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/>
+                            </svg>
+                          </div>
+                          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                            {showAddRoleModal ? 'Nouveau rôle' : `Modifier « ${selectedRole?.name} »`}
+                          </h2>
+                        </div>
+                        <button onClick={() => { setShowAddRoleModal(false); setShowEditRoleModal(false) }}
+                          style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fff1f2'; e.currentTarget.style.color = '#ef4444' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#94a3b8' }}>
+                          <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'>
+                            <line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/>
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Body scrollable */}
+                      <div style={{ overflowY: 'auto', flex: 1, paddingRight: 2 }}>
+                        {/* Nom du rôle */}
+                        <div style={{ marginBottom: 22 }}>
+                          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                            Nom du rôle <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <input placeholder='Ex: Chef de projet, Technicien...' value={roleFormName}
+                            onChange={e => { setRoleFormName(e.target.value); setRoleNameError('') }}
+                            style={inputStyle(!!roleNameError)}
+                            onFocus={e => e.target.style.borderColor = '#1d4ed8'}
+                            onBlur={e => e.target.style.borderColor = roleNameError ? '#ef4444' : '#e2e8f0'} />
+                          {roleNameError && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#ef4444' }}>⚠ {roleNameError}</p>}
+                        </div>
+
+                        {/* Permissions */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                              Permissions
+                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', padding: '2px 8px', borderRadius: 100 }}>
+                                {roleFormPermIds.size} sélectionnée{roleFormPermIds.size !== 1 ? 's' : ''}
+                              </span>
+                            </label>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => setRoleFormPermIds(new Set(permissions.map(p => p.id)))}
+                                style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#dbeafe'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#eff6ff'}>
+                                Tout cocher
+                              </button>
+                              <button onClick={() => setRoleFormPermIds(new Set())}
+                                style={{ fontSize: 11, fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}>
+                                Tout décocher
+                              </button>
+                            </div>
+                          </div>
+
+                          {permissions.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: 10, border: '1px dashed #e2e8f0', color: '#94a3b8', fontSize: 13 }}>
+                              Aucune permission disponible
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {Object.entries(grouped).map(([category, perms]) => {
+                                const allChecked  = perms.every(p => roleFormPermIds.has(p.id))
+                                const someChecked = perms.some(p => roleFormPermIds.has(p.id))
+                                return (
+                                  <div key={category} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                                    {/* En-tête catégorie */}
+                                    <div onClick={() => toggleRolePermGroup(perms.map(p => p.id), !allChecked)}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                                      <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${allChecked || someChecked ? '#1d4ed8' : '#cbd5e1'}`, background: allChecked ? '#1d4ed8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        {allChecked && <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='white' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'><polyline points='20 6 9 17 4 12'/></svg>}
+                                        {!allChecked && someChecked && <div style={{ width: 8, height: 2, background: '#1d4ed8', borderRadius: 1 }} />}
+                                      </div>
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{category}</span>
+                                      <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8' }}>
+                                        {perms.filter(p => roleFormPermIds.has(p.id)).length}/{perms.length}
+                                      </span>
+                                    </div>
+                                    {/* Items */}
+                                    <div style={{ padding: '6px 0' }}>
+                                      {perms.map(perm => {
+                                        const checked = roleFormPermIds.has(perm.id)
+                                        return (
+                                          <label key={perm.id}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', cursor: 'pointer' }}
+                                            onMouseEnter={e => (e.currentTarget as HTMLLabelElement).style.background = '#f8fafc'}
+                                            onMouseLeave={e => (e.currentTarget as HTMLLabelElement).style.background = 'transparent'}>
+                                            <div onClick={() => toggleRolePerm(perm.id)}
+                                              style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${checked ? '#1d4ed8' : '#cbd5e1'}`, background: checked ? '#1d4ed8' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', cursor: 'pointer' }}>
+                                              {checked && <svg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='white' strokeWidth='3' strokeLinecap='round' strokeLinejoin='round'><polyline points='20 6 9 17 4 12'/></svg>}
+                                            </div>
+                                            <span onClick={() => toggleRolePerm(perm.id)}
+                                              style={{ fontSize: 13, color: checked ? '#0f172a' : '#475569', fontWeight: checked ? 600 : 400, userSelect: 'none', cursor: 'pointer' }}>
+                                              {perm.name}
+                                            </span>
+                                          </label>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 24, paddingTop: 20, borderTop: '1px solid #f1f5f9' }}>
+                        <button onClick={() => { setShowAddRoleModal(false); setShowEditRoleModal(false) }}
+                          style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>
+                          Annuler
+                        </button>
+                        <button onClick={showAddRoleModal ? handleCreateRole : handleUpdateRole} disabled={actionLoading}
+                          style={{ flex: 1, padding: '11px', background: '#1d4ed8', border: 'none', borderRadius: 8, cursor: actionLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white', opacity: actionLoading ? 0.7 : 1 }}
+                          onMouseEnter={e => { if (!actionLoading) e.currentTarget.style.background = '#1e40af' }}
+                          onMouseLeave={e => e.currentTarget.style.background = '#1d4ed8'}>
+                          {actionLoading ? 'Enregistrement...' : showAddRoleModal ? 'Créer le rôle' : 'Sauvegarder'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── MODAL SUPPRESSION RÔLE ── */}
+                {showDeleteRoleModal && selectedRole && (
+                  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={e => { if (e.target === e.currentTarget) setShowDeleteRoleModal(false) }}>
+                    <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                        <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                          <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/>
+                          <path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+                        </svg>
+                      </div>
+                      <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>Supprimer le rôle</h2>
+                      <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 8, lineHeight: 1.6 }}>
+                        Supprimer le rôle <strong>« {selectedRole.name} »</strong> ?
+                      </p>
+                      <p style={{ color: '#d97706', fontSize: 12, textAlign: 'center', marginBottom: 24, background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
+                        ⚠ Les utilisateurs assignés à ce rôle seront affectés.
+                      </p>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={() => setShowDeleteRoleModal(false)}
+                          style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>
+                          Annuler
+                        </button>
+                        <button onClick={handleDeleteRole} disabled={actionLoading}
+                          style={{ flex: 1, padding: '11px', background: '#ef4444', border: 'none', borderRadius: 8, cursor: actionLoading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white', opacity: actionLoading ? 0.7 : 1 }}>
+                          {actionLoading ? 'Suppression...' : 'Supprimer'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+            )
+          })()}
+
+          {/* ════════ PLANS ════════ */}
           {section === 'plans' && selectedLocationForPlans && (
             <div>
               <div style={{ marginBottom: 28 }}>
-                <button
-                  onClick={() => { setSection('projects'); }}
+                <button onClick={() => setSection('projects')}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600, padding: '0 0 10px', marginBottom: 4 }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
+                  onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
                   <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round' strokeLinejoin='round'><polyline points='15 18 9 12 15 6'/></svg>
                   Retour aux localisations
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              
                   <div>
                     <h1 style={{ fontSize: 26, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', margin: 0 }}>
                       Plans — <span style={{ color: '#000000' }}>{selectedLocationForPlans.name}</span>
@@ -825,7 +1379,9 @@ export default function AdminDashboard() {
                 <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Chargement des plans...</div>
               ) : plans.length === 0 ? (
                 <div style={{ background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center' }}>
-                  <svg width='48' height='48' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 16px', display: 'block' }}><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/></svg>
+                  <svg width='48' height='48' viewBox='0 0 24 24' fill='none' stroke='#cbd5e1' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' style={{ margin: '0 auto 16px', display: 'block' }}>
+                    <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/>
+                  </svg>
                   <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>Aucun plan pour cette localisation</p>
                 </div>
               ) : (
@@ -837,12 +1393,13 @@ export default function AdminDashboard() {
                       <div key={plan.id}
                         style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', transition: 'box-shadow 0.15s, border-color 0.15s' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#bfdbfe' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0' }}
-                      >
+                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div style={{ width: 38, height: 38, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <svg width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/></svg>
+                              <svg width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='#1d4ed8' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                                <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/>
+                              </svg>
                             </div>
                             <div>
                               <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{plan.name}</p>
@@ -864,9 +1421,8 @@ export default function AdminDashboard() {
                           <a href={`http://localhost:5279${latestVersion.filePath}`} target='_blank' rel='noopener noreferrer'
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', background: '#1d4ed8', borderRadius: 9, textDecoration: 'none', color: 'white', fontSize: 13, fontWeight: 600, transition: 'background 0.15s' }}
                             onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1e40af'}
-                            onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1d4ed8'}
-                          >
-                            Voir v{plan.currentVersion}
+                            onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.background = '#1d4ed8'}>
+                            Voir Plan
                           </a>
                         ) : (
                           <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', padding: '8px', background: '#f8fafc', borderRadius: 8, border: '1px dashed #e2e8f0' }}>Aucun fichier disponible</div>
@@ -881,18 +1437,25 @@ export default function AdminDashboard() {
         </main>
       </div>
 
-      {/* ══ PLANS MODAL ══ */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODALS                                                                */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+
+      {/* Plans modal */}
       {showPlansModal && selectedLocationForPlans && (
         <PlansModal location={selectedLocationForPlans} plans={plans} loading={loadingPlans}
           onClose={() => { setShowPlansModal(false); setSelectedLocationForPlans(null); setPlans([]) }} />
       )}
 
-      {/* ══ USER MODALS ══ */}
+      {/* ── User : Supprimer ── */}
       {showDeleteModal && selectedUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg>
+              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+              </svg>
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>Supprimer l'utilisateur</h2>
             <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 1.6 }}>Supprimer <strong>{selectedUser.name}</strong> ? Cette action est irréversible.</p>
@@ -904,8 +1467,10 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── User : Modifier ── */}
       {showEditModal && selectedUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowEditModal(false) }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowEditModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>Modifier l'utilisateur</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
@@ -930,15 +1495,21 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── User : Ajouter ── */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setAddErrors({}) } }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setAddErrors({}) } }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>Ajouter un utilisateur</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
               {([{ label: 'Nom complet', key: 'name', type: 'text', placeholder: 'Ahmed Benali' }, { label: 'Email', key: 'email', type: 'email', placeholder: 'a.benali@entreprise.com' }, { label: 'Mot de passe', key: 'password', type: 'password', placeholder: '••••••••' }] as const).map(f => (
                 <div key={f.key}>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{f.label}</label>
-                  <input type={f.type} placeholder={f.placeholder} value={newUser[f.key]} onChange={e => { setNewUser(p => ({ ...p, [f.key]: e.target.value })); setAddErrors(p => ({ ...p, [f.key]: '' })) }} style={inputStyle(!!addErrors[f.key])} onFocus={e => { if (!addErrors[f.key]) e.target.style.borderColor = '#1d4ed8' }} onBlur={e => { if (!addErrors[f.key]) e.target.style.borderColor = '#e2e8f0' }} />
+                  <input type={f.type} placeholder={f.placeholder} value={newUser[f.key]}
+                    onChange={e => { setNewUser(p => ({ ...p, [f.key]: e.target.value })); setAddErrors(p => ({ ...p, [f.key]: '' })) }}
+                    style={inputStyle(!!addErrors[f.key])}
+                    onFocus={e => { if (!addErrors[f.key]) e.target.style.borderColor = '#1d4ed8' }}
+                    onBlur={e => { if (!addErrors[f.key]) e.target.style.borderColor = '#e2e8f0' }} />
                   {addErrors[f.key] && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#ef4444' }}>⚠ {addErrors[f.key]}</p>}
                 </div>
               ))}
@@ -957,12 +1528,15 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ══ PROJECT MODALS ══ */}
+      {/* ── Project : Supprimer ── */}
       {showDeleteProjectModal && selectedProject && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteProjectModal(false) }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDeleteProjectModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg>
+              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+              </svg>
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>Supprimer le projet</h2>
             <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 1.6 }}>Supprimer <strong>{selectedProject.name}</strong> ? Cette action est irréversible.</p>
@@ -974,8 +1548,10 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── Project : Modifier ── */}
       {showEditProjectModal && selectedProject && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowEditProjectModal(false) }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowEditProjectModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>Modifier le projet</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
@@ -1003,8 +1579,10 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── Project : Ajouter ── */}
       {showAddProjectModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) { setShowAddProjectModal(false); setProjectErrors({}) } }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddProjectModal(false); setProjectErrors({}) } }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>Nouveau projet</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
@@ -1032,16 +1610,21 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ══ LOCATION MODALS ══ */}
+      {/* ── Location : Supprimer ── */}
       {showDeleteLocationModal && selectedLocation && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDeleteLocationModal(false) }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDeleteLocationModal(false) }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 400, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/></svg>
+              <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='#ef4444' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                <polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14H6L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4h6v2'/>
+              </svg>
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', textAlign: 'center', marginBottom: 8 }}>Supprimer la localisation</h2>
             <p style={{ color: '#64748b', fontSize: 14, textAlign: 'center', marginBottom: 8, lineHeight: 1.6 }}>Supprimer <strong>{selectedLocation.name}</strong> ?</p>
-            <p style={{ color: '#d97706', fontSize: 12, textAlign: 'center', marginBottom: 24, background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>⚠ Impossible de supprimer une localisation ayant des enfants.</p>
+            <p style={{ color: '#d97706', fontSize: 12, textAlign: 'center', marginBottom: 24, background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
+              ⚠ Impossible de supprimer une localisation ayant des enfants.
+            </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowDeleteLocationModal(false)} style={{ flex: 1, padding: '11px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#475569' }}>Annuler</button>
               <button onClick={handleDeleteLocation} disabled={actionLoading} style={{ flex: 1, padding: '11px', background: '#ef4444', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>{actionLoading ? 'Suppression...' : 'Supprimer'}</button>
@@ -1050,17 +1633,22 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── Location : Ajouter ── */}
       {showAddLocationModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) { setShowAddLocationModal(false); setLocationErrors({}) } }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddLocationModal(false); setLocationErrors({}) } }}>
           <div style={{ background: 'white', borderRadius: 16, padding: '32px', maxWidth: 420, width: '90%', boxShadow: '0 24px 60px rgba(0,0,0,0.15)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>{parentLocation ? `Ajouter sous « ${parentLocation.name} »` : 'Nouvelle localisation racine'}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+              {parentLocation ? `Ajouter sous « ${parentLocation.name} »` : 'Nouvelle localisation racine'}
+            </h2>
             {!parentLocation && <div style={{ marginBottom: 20 }} />}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Nom</label>
                 <input placeholder='Ex: Bâtiment A, Salle 101...' value={newLocation.name}
                   onChange={e => { setNewLocation(p => ({ ...p, name: e.target.value })); setLocationErrors(p => ({ ...p, name: '' })) }}
-                  style={inputStyle(!!locationErrors.name)} onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                  style={inputStyle(!!locationErrors.name)}
+                  onFocus={e => e.target.style.borderColor = '#1d4ed8'} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
                 {locationErrors.name && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#ef4444' }}>⚠ {locationErrors.name}</p>}
               </div>
               <div>

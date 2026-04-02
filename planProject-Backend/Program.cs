@@ -47,6 +47,7 @@ builder.Services.AddScoped<IProjectService,ProjectService>();
 builder.Services.AddScoped<IEmailService,EmailService>();
 builder.Services.AddScoped<ILocationService,LocationService>();
 builder.Services.AddScoped<IPlanService,PlanService>();
+builder.Services.AddScoped<IRoleService,RoleService>();
 
 // ---------------- Swagger + JWT support ----------------
 builder.Services.AddEndpointsApiExplorer();
@@ -115,11 +116,11 @@ app.UseSwaggerUI(options =>
     options.SwaggerEndpoint("/swagger/v1/swagger.json", "PlanProject API V1");
     options.RoutePrefix = string.Empty;
 });
-
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.UseStaticFiles();
+
 
 app.Run();
