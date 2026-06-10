@@ -4,20 +4,24 @@ using System.Security.Claims;
 using System.Text;
 
 
+
 namespace planProject.Services
 {
     public class JwtService
     {
         private readonly IConfiguration _configuration;
+        private readonly IPermissionService _permissionService;
 
-        public JwtService(IConfiguration configuration)
+        public JwtService(IConfiguration configuration, IPermissionService permissionService)
         {
             _configuration = configuration;
+            _permissionService = permissionService;
         }
 
-        public string GenerateToken(User user)
+        public virtual async Task<string> GenerateToken(User user)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
+            var permissions = await _permissionService.GetUserPermissionsAsync(user.Id);
 
             var claims = new List<Claim>
             {
@@ -25,6 +29,12 @@ namespace planProject.Services
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Role?.Name ?? "User")
             };
+
+            foreach (var permission in permissions)
+            {
+                claims.Add(new Claim("Permission", permission));
+            }
+
 
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSettings["Secret"]));
@@ -42,7 +52,7 @@ namespace planProject.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public string GenerateResetToken(User user)
+        public virtual string GenerateResetToken(User user)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
 
@@ -66,7 +76,7 @@ namespace planProject.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public int? ValidateResetToken(string token)
+        public virtual int? ValidateResetToken(string token)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var key = Encoding.UTF8.GetBytes(jwtSettings["Secret"]);
@@ -97,7 +107,7 @@ namespace planProject.Services
             }
             catch
             {
-                return null; // token invalide ou expiré
+                return null; 
             }
 
             return null;

@@ -39,4 +39,6 @@ using System.ComponentModel.DataAnnotations.Schema;
         public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
         public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
         public virtual ICollection<Annotation> Annotations { get; set; } = new List<Annotation>();
+        public virtual ICollection<ProjectTask> CreatedTasks { get; set; } = new List<ProjectTask>();
+        public virtual ICollection<ProjectTask> AssignedTasks { get; set; } = new List<ProjectTask>();
     }

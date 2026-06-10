@@ -35,17 +35,30 @@ namespace planProject.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("analyzedAt");
 
+                    b.Property<int?>("ComparedWithVersionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("compared_with_version_id");
+
                     b.Property<string>("ComparisonResults")
                         .HasColumnType("text")
                         .HasColumnName("comparison_results");
+
+                    b.Property<int?>("TotalChanges")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_changes");
 
                     b.Property<int>("VersionId")
                         .HasColumnType("integer")
                         .HasColumnName("version_id");
 
+                    b.Property<bool>("VlmEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("vlm_enabled");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("VersionId");
+                    b.HasIndex("VersionId", "ComparedWithVersionId")
+                        .IsUnique();
 
                     b.ToTable("AI_Analysis");
                 });
@@ -195,8 +208,8 @@ namespace planProject.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
                     b.Property<int?>("RelatedEntityId")
@@ -209,8 +222,8 @@ namespace planProject.Migrations
                         .HasColumnName("related_entity_type");
 
                     b.Property<string>("Type")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("type");
 
                     b.Property<int>("UserId")
@@ -237,8 +250,8 @@ namespace planProject.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
                     b.HasKey("Id");
@@ -437,6 +450,70 @@ namespace planProject.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ProjectMembers");
+                });
+
+            modelBuilder.Entity("ProjectTask", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AssignedTo")
+                        .HasColumnType("integer")
+                        .HasColumnName("assigned_to");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CreatedBy")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("priority");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedTo");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("Tasks");
                 });
 
             modelBuilder.Entity("Role", b =>
@@ -647,6 +724,32 @@ namespace planProject.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProjectTask", b =>
+                {
+                    b.HasOne("User", "Assignee")
+                        .WithMany("AssignedTasks")
+                        .HasForeignKey("AssignedTo")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("User", "Creator")
+                        .WithMany("CreatedTasks")
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Project", "Project")
+                        .WithMany("Tasks")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Assignee");
+
+                    b.Navigation("Creator");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("RolePermission", b =>
                 {
                     b.HasOne("Permission", "Permission")
@@ -706,6 +809,8 @@ namespace planProject.Migrations
                     b.Navigation("Locations");
 
                     b.Navigation("ProjectMembers");
+
+                    b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("Role", b =>
@@ -719,7 +824,11 @@ namespace planProject.Migrations
                 {
                     b.Navigation("Annotations");
 
+                    b.Navigation("AssignedTasks");
+
                     b.Navigation("AuditLogs");
+
+                    b.Navigation("CreatedTasks");
 
                     b.Navigation("Notifications");
 

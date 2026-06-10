@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using planProject.Data;
+using planProject.Services.Interfaces;
+using planProject.Enums;
 
 namespace planProject.Services
 {
@@ -7,10 +9,12 @@ namespace planProject.Services
     {
         private readonly ApplicationDbContext _context;
         
+        private readonly IAuditService _auditService;
 
-        public UserService(ApplicationDbContext context)
+        public UserService(ApplicationDbContext context, IAuditService auditService)
         {
             _context = context;
+            _auditService = auditService;
         }
 
      
@@ -29,7 +33,7 @@ namespace planProject.Services
         }
 
   
-        public async Task<bool> UpdateUserAsync(int id, UpdateUserDto request)
+        public async Task<bool> UpdateUserAsync(int id, UpdateUserDto request,int currentUserId)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null) return false;
@@ -38,22 +42,24 @@ namespace planProject.Services
             user.Email = request.Email ?? user.Email;
 
             await _context.SaveChangesAsync();
+            await _auditService.LogAsync(currentUserId,AuditAction.UPDATE.ToString(),"User",user.Id,$"Utilisateur mis à jour : {user.Email}");
             return true;
         }
 
     
-        public async Task<bool> DeleteUserAsync(int id)
+        public async Task<bool> DeleteUserAsync(int id, int currentUserId)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null) return false;
 
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
+            await _auditService.LogAsync(currentUserId,AuditAction.DELETE.ToString(),"User",user.Id,$"Utilisateur supprimé : {user.Email}");
             return true;
         }
 
       
-        public async Task<string> ChangeUserRoleAsync(int id, ChangeRoleDto request)
+        public async Task<string> ChangeUserRoleAsync(int id, ChangeRoleDto request, int currentUserId)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null) return "User not found";
@@ -63,6 +69,7 @@ namespace planProject.Services
 
             user.RoleId = role.Id;
             await _context.SaveChangesAsync();
+            await _auditService.LogAsync(currentUserId,AuditAction.UPDATE.ToString(),"User",user.Id,$"Rôle de l'utilisateur mis à jour : {user.Email} -> {role.Name}");
 
             return "User role updated successfully";
         }

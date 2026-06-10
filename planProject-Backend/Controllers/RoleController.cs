@@ -7,8 +7,7 @@ namespace planProject.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
-    public class RolesController : ControllerBase
+public class RolesController : ControllerBase
     {
         private readonly IRoleService _roleService;
 
@@ -18,6 +17,7 @@ namespace planProject.Controllers
         }
 
         [HttpGet]
+        [Authorize(Policy = "Lire_Role")]
         public async Task<IActionResult> GetAll()
         {
             var roles = await _roleService.GetAllRolesAsync();
@@ -25,6 +25,7 @@ namespace planProject.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize(Policy = "Lire_Rôle")]
         public async Task<IActionResult> GetById(int id)
         {
             var role = await _roleService.GetRoleByIdAsync(id);
@@ -33,6 +34,7 @@ namespace planProject.Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = "Creer_Role")]
         public async Task<IActionResult> Create([FromBody] CreateRoleDto dto)
         {
             try
@@ -46,6 +48,7 @@ namespace planProject.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Policy = "Modifier_Role")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateRoleDto dto)
         {
             try
@@ -59,6 +62,7 @@ namespace planProject.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = "Supprimer_Role")]
         public async Task<IActionResult> Delete(int id)
         {
             try

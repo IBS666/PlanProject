@@ -67,6 +67,31 @@ export const planService = {
   })
   if (!res.ok) throw new Error('Erreur ajout version')
   return res.json()
-}
+},
+
+deleteVersion: async (versionId: number): Promise<void> => {
+  const res = await fetch(`${BASE_URL}/plan/versions/${versionId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error('Erreur suppression version')
+},
+getMyPlansCount: async (): Promise<number> => {
+    const res = await fetch(`${BASE_URL}/plan/my-plans-count`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur comptage plans')
+    return res.json()
+},
+
+getMyVersionsCount: async (): Promise<number> => {
+    const res = await fetch(`${BASE_URL}/plan/my-versions-count`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur comptage versions')
+    return res.json()
+},
+getMyPlansByCategory: async (): Promise<Record<string, number>> => {
+    const res = await fetch(`${BASE_URL}/plan/my-plans-by-category`, { headers: headers() })
+    if (!res.ok) throw new Error('Erreur catégories')
+    return res.json()
+},
+
   
 }

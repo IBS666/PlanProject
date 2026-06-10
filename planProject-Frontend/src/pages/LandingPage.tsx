@@ -1,7 +1,7 @@
 import { useState, useEffect} from "react";
 import type { JSX } from "react";
 import { Link } from "react-router-dom";
-import { FolderOpen, PenLine, GitBranch, Bot, LayoutDashboard, Search, Lightbulb, Upload } from "lucide-react";
+import { FolderOpen, PenLine, GitBranch, Bot, LayoutDashboard, Search, Lightbulb, Upload, FileText } from "lucide-react";
 
 /* ─── GLOBAL STYLES ─── */
 const GlobalStyle = (): JSX.Element => (
@@ -368,7 +368,7 @@ const FEATURES: Feature[] = [
   { title: "Gestion des projets et plans", desc: "Importez vos plans PDF, DWG ou images et organisez-les par projet et catégorie. Navigation multi-pages avec zoom intégré.",icon: FolderOpen},
   { title: "Annotation et modification", desc: "Interface de dessin directement sur le plan : lignes, formes, commentaires, surlignage.",icon: PenLine},
   { title: "Versioning complet", desc: "Chaque modification crée une nouvelle version. Historique complet avec date, auteur et commentaire.",icon:GitBranch  },
-  { title: "Analyse IA automatique", desc: "Détection automatique des différences entre versions et classification des plans.", icon:Bot },
+  { title: "Analyse IA automatique", desc: "Détection automatique des différences entre versions.", icon:Bot },
   { title: "Tableau de bord et export", desc: "Vue globale des projets, plans récemment modifiés et dernières versions. Export PDF des rapports et historiques.", icon:LayoutDashboard },
 ];
 
@@ -422,14 +422,14 @@ interface AIResult {
 function AISection() {
   const aiItems: AIItem[] = [
     { icon: Search, title: "Détection des différences", desc: "Surlignage automatique des zones modifiées entre deux versions d'un plan." },
-    { icon: FolderOpen, title: "Classification automatique", desc: "Tri des plans par type, projet et zone modifiée selon leur contenu." },
-    { icon: Lightbulb, title: "Suggestions d'actions", desc: "Alertes sur modifications importantes et proposition de fusion de plans." },
+    { icon: FileText, title: "Rapports automatiques", desc: "Génération d’un résumé des modifications détectées entre deux versions d’un plan." },
+    { icon: Lightbulb, title: "Suggestions d'actions", desc: "Alertes sur modifications importantes." },
   ];
 
   const aiResults: AIResult[] = [
-    { icon:"🔴", label:"Zone modifiée", detail:"Cuisine — surface +4m²", color:"#fee2e2", text:"#b91c1c" },
-    { icon:"🟢", label:"Zone ajoutée", detail:"Dégagement — nouveau", color:"#dcfce7", text:"#15803d" },
-    { icon:"🟡", label:"Annotation déplacée", detail:"Note fenêtre — repositionnée", color:"#fef3c7", text:"#92400e" },
+    { icon:"🔴", label:"Elément supprimée", detail:"Porte supprimée", color:"#fee2e2", text:"#b91c1c" },
+    { icon:"🟢", label:"Elément ajoutée", detail:"Annotation ajoutée", color:"#dcfce7", text:"#15803d" },
+    { icon:"🟡", label:"Zone modifiée", detail:"fenêtre — repositionnée", color:"#fef3c7", text:"#92400e" },
   ];
   return (
     <section id="analyse-ia" className="bg-mesh" style={{ padding: "96px 28px", borderTop: "1px solid #e8effe" }}>

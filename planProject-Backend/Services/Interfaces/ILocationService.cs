@@ -4,7 +4,7 @@ namespace planProject.Services.Interfaces
 {
     public interface ILocationService
     {
-        Task<Location> CreateLocationAsync(CreateLocationDto request);
+        Task<Location> CreateLocationAsync(CreateLocationDto request, int currentUserId);
 
         Task<Location?> GetLocationByIdAsync(int locationId);
 
@@ -14,6 +14,6 @@ namespace planProject.Services.Interfaces
 
         Task<List<Location>> GetLocationTreeByProjectAsync(int projectId);
 
-        Task<bool> DeleteLocationAsync(int locationId);
+        Task<bool> DeleteLocationAsync(int locationId, int currentUserId);
     }
 }

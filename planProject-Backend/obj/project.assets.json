@@ -2,17 +2,13 @@
   "version": 3,
   "targets": {
     "net8.0": {
-      "BCrypt.Net-Next/4.0.3": {
+      "BCrypt.Net-Next/4.2.0": {
         "type": "package",
         "compile": {
-          "lib/net6.0/BCrypt.Net-Next.dll": {
-            "related": ".xml"
-          }
+          "lib/netstandard2.1/BCrypt-Net-Next.dll": {}
         },
         "runtime": {
-          "lib/net6.0/BCrypt.Net-Next.dll": {
-            "related": ".xml"
-          }
+          "lib/netstandard2.1/BCrypt-Net-Next.dll": {}
         }
       },
       "BouncyCastle.Cryptography/2.6.2": {
@@ -25,6 +21,93 @@
         "runtime": {
           "lib/net6.0/BouncyCastle.Cryptography.dll": {
             "related": ".xml"
+          }
+        }
+      },
+      "Castle.Core/5.1.1": {
+        "type": "package",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "6.0.0"
+        },
+        "compile": {
+          "lib/net6.0/Castle.Core.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/Castle.Core.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Docnet.Core/2.6.0": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/Docnet.Core.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/Docnet.Core.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/linux-arm/native/LICENSE": {
+            "assetType": "native",
+            "rid": "linux-arm"
+          },
+          "runtimes/linux-arm/native/pdfium.so": {
+            "assetType": "native",
+            "rid": "linux-arm"
+          },
+          "runtimes/linux-arm64/native/LICENSE": {
+            "assetType": "native",
+            "rid": "linux-arm64"
+          },
+          "runtimes/linux-arm64/native/pdfium.so": {
+            "assetType": "native",
+            "rid": "linux-arm64"
+          },
+          "runtimes/linux/native/LICENSE": {
+            "assetType": "native",
+            "rid": "linux"
+          },
+          "runtimes/linux/native/pdfium.so": {
+            "assetType": "native",
+            "rid": "linux"
+          },
+          "runtimes/osx-arm64/native/LICENSE": {
+            "assetType": "native",
+            "rid": "osx-arm64"
+          },
+          "runtimes/osx-arm64/native/pdfium.dylib": {
+            "assetType": "native",
+            "rid": "osx-arm64"
+          },
+          "runtimes/osx-x64/native/LICENSE": {
+            "assetType": "native",
+            "rid": "osx-x64"
+          },
+          "runtimes/osx-x64/native/pdfium.dylib": {
+            "assetType": "native",
+            "rid": "osx-x64"
+          },
+          "runtimes/win-x64/native/LICENSE": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
+          "runtimes/win-x64/native/pdfium.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
+          "runtimes/win-x86/native/LICENSE": {
+            "assetType": "native",
+            "rid": "win-x86"
+          },
+          "runtimes/win-x86/native/pdfium.dll": {
+            "assetType": "native",
+            "rid": "win-x86"
           }
         }
       },
@@ -805,6 +888,18 @@
           "lib/netstandard2.0/Mono.TextTemplating.dll": {}
         }
       },
+      "Moq/4.20.72": {
+        "type": "package",
+        "dependencies": {
+          "Castle.Core": "5.1.1"
+        },
+        "compile": {
+          "lib/net6.0/Moq.dll": {}
+        },
+        "runtime": {
+          "lib/net6.0/Moq.dll": {}
+        }
+      },
       "Npgsql/8.0.6": {
         "type": "package",
         "dependencies": {
@@ -838,6 +933,22 @@
           "lib/net8.0/Npgsql.EntityFrameworkCore.PostgreSQL.dll": {
             "related": ".xml"
           }
+        }
+      },
+      "SixLabors.ImageSharp/3.1.12": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/SixLabors.ImageSharp.props": {}
         }
       },
       "Swashbuckle.AspNetCore/6.6.2": {
@@ -1037,6 +1148,32 @@
           "buildTransitive/netcoreapp3.1/_._": {}
         }
       },
+      "System.Diagnostics.EventLog/6.0.0": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/System.Diagnostics.EventLog.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/System.Diagnostics.EventLog.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/netcoreapp3.1/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.Messages.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          },
+          "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          }
+        }
+      },
       "System.Formats.Asn1/8.0.1": {
         "type": "package",
         "compile": {
@@ -1187,33 +1324,27 @@
     }
   },
   "libraries": {
-    "BCrypt.Net-Next/4.0.3": {
-      "sha512": "W+U9WvmZQgi5cX6FS5GDtDoPzUCV4LkBLkywq/kRZhuDwcbavOzcDAr3LXJFqHUi952Yj3LEYoWW0jbEUQChsA==",
+    "BCrypt.Net-Next/4.2.0": {
+      "sha512": "gwLD2KfCuwQesP17aVh4h6lpiMPEVt5Lbpndo0ej903hNUUTtyxt3ARdDjmuydBRTAUICc7OVKVbaOvc6SQYXA==",
       "type": "package",
-      "path": "bcrypt.net-next/4.0.3",
+      "path": "bcrypt.net-next/4.2.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "bcrypt.net-next.4.0.3.nupkg.sha512",
+        "bcrypt.net-next.4.2.0.nupkg.sha512",
         "bcrypt.net-next.nuspec",
         "ico.png",
-        "lib/net20/BCrypt.Net-Next.dll",
-        "lib/net20/BCrypt.Net-Next.xml",
-        "lib/net35/BCrypt.Net-Next.dll",
-        "lib/net35/BCrypt.Net-Next.xml",
-        "lib/net462/BCrypt.Net-Next.dll",
+        "lib/net10.0/BCrypt-Net-Next.dll",
+        "lib/net10.0/BCrypt.Net-Next.xml",
+        "lib/net462/BCrypt-Net-Next.dll",
         "lib/net462/BCrypt.Net-Next.xml",
-        "lib/net472/BCrypt.Net-Next.dll",
+        "lib/net472/BCrypt-Net-Next.dll",
         "lib/net472/BCrypt.Net-Next.xml",
-        "lib/net48/BCrypt.Net-Next.dll",
+        "lib/net48/BCrypt-Net-Next.dll",
         "lib/net48/BCrypt.Net-Next.xml",
-        "lib/net5.0/BCrypt.Net-Next.dll",
-        "lib/net5.0/BCrypt.Net-Next.xml",
-        "lib/net6.0/BCrypt.Net-Next.dll",
-        "lib/net6.0/BCrypt.Net-Next.xml",
-        "lib/netstandard2.0/BCrypt.Net-Next.dll",
+        "lib/netstandard2.0/BCrypt-Net-Next.dll",
         "lib/netstandard2.0/BCrypt.Net-Next.xml",
-        "lib/netstandard2.1/BCrypt.Net-Next.dll",
+        "lib/netstandard2.1/BCrypt-Net-Next.dll",
         "lib/netstandard2.1/BCrypt.Net-Next.xml",
         "readme.md"
       ]
@@ -1236,6 +1367,59 @@
         "lib/netstandard2.0/BouncyCastle.Cryptography.dll",
         "lib/netstandard2.0/BouncyCastle.Cryptography.xml",
         "packageIcon.png"
+      ]
+    },
+    "Castle.Core/5.1.1": {
+      "sha512": "rpYtIczkzGpf+EkZgDr9CClTdemhsrwA/W5hMoPjLkRFnXzH44zDLoovXeKtmxb1ykXK9aJVODSpiJml8CTw2g==",
+      "type": "package",
+      "path": "castle.core/5.1.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "ASL - Apache Software Foundation License.txt",
+        "CHANGELOG.md",
+        "LICENSE",
+        "castle-logo.png",
+        "castle.core.5.1.1.nupkg.sha512",
+        "castle.core.nuspec",
+        "lib/net462/Castle.Core.dll",
+        "lib/net462/Castle.Core.xml",
+        "lib/net6.0/Castle.Core.dll",
+        "lib/net6.0/Castle.Core.xml",
+        "lib/netstandard2.0/Castle.Core.dll",
+        "lib/netstandard2.0/Castle.Core.xml",
+        "lib/netstandard2.1/Castle.Core.dll",
+        "lib/netstandard2.1/Castle.Core.xml",
+        "readme.txt"
+      ]
+    },
+    "Docnet.Core/2.6.0": {
+      "sha512": "in7fpB16Zbdz7D7Qv+4QrapTKKOU1ub2XOvmVGVDEyEwnEZjlbGIiwmpfO03q/GDDEkDM/gIAumxK0U988qSsQ==",
+      "type": "package",
+      "path": "docnet.core/2.6.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "build/net45/Docnet.Core.targets",
+        "docnet.core.2.6.0.nupkg.sha512",
+        "docnet.core.nuspec",
+        "icon.png",
+        "lib/netstandard2.0/Docnet.Core.dll",
+        "lib/netstandard2.0/Docnet.Core.xml",
+        "runtimes/linux-arm/native/LICENSE",
+        "runtimes/linux-arm/native/pdfium.so",
+        "runtimes/linux-arm64/native/LICENSE",
+        "runtimes/linux-arm64/native/pdfium.so",
+        "runtimes/linux/native/LICENSE",
+        "runtimes/linux/native/pdfium.so",
+        "runtimes/osx-arm64/native/LICENSE",
+        "runtimes/osx-arm64/native/pdfium.dylib",
+        "runtimes/osx-x64/native/LICENSE",
+        "runtimes/osx-x64/native/pdfium.dylib",
+        "runtimes/win-x64/native/LICENSE",
+        "runtimes/win-x64/native/pdfium.dll",
+        "runtimes/win-x86/native/LICENSE",
+        "runtimes/win-x86/native/pdfium.dll"
       ]
     },
     "Humanizer.Core/2.14.1": {
@@ -2717,6 +2901,23 @@
         "mono.texttemplating.nuspec"
       ]
     },
+    "Moq/4.20.72": {
+      "sha512": "EA55cjyNn8eTNWrgrdZJH5QLFp2L43oxl1tlkoYUKIE9pRwL784OWiTXeCV5ApS+AMYEAlt7Fo03A2XfouvHmQ==",
+      "type": "package",
+      "path": "moq/4.20.72",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/net462/Moq.dll",
+        "lib/net6.0/Moq.dll",
+        "lib/netstandard2.0/Moq.dll",
+        "lib/netstandard2.1/Moq.dll",
+        "moq.4.20.72.nupkg.sha512",
+        "moq.nuspec",
+        "readme.md"
+      ]
+    },
     "Npgsql/8.0.6": {
       "sha512": "KaS6CY5kY2Sd0P00MSeFcOI3t2DiQ4UWG8AuRpVOUeDWITOKfoEEG91DP3cmT6aerixPkjwKgXxnpDxIkDpO6g==",
       "type": "package",
@@ -2753,6 +2954,22 @@
         "npgsql.entityframeworkcore.postgresql.8.0.11.nupkg.sha512",
         "npgsql.entityframeworkcore.postgresql.nuspec",
         "postgresql.png"
+      ]
+    },
+    "SixLabors.ImageSharp/3.1.12": {
+      "sha512": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A==",
+      "type": "package",
+      "path": "sixlabors.imagesharp/3.1.12",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "build/SixLabors.ImageSharp.props",
+        "lib/net6.0/SixLabors.ImageSharp.dll",
+        "lib/net6.0/SixLabors.ImageSharp.xml",
+        "sixlabors.imagesharp.128.png",
+        "sixlabors.imagesharp.3.1.12.nupkg.sha512",
+        "sixlabors.imagesharp.nuspec"
       ]
     },
     "Swashbuckle.AspNetCore/6.6.2": {
@@ -3033,6 +3250,37 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "System.Diagnostics.EventLog/6.0.0": {
+      "sha512": "lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw==",
+      "type": "package",
+      "path": "system.diagnostics.eventlog/6.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/netcoreapp2.0/System.Diagnostics.EventLog.targets",
+        "buildTransitive/netcoreapp3.1/_._",
+        "lib/net461/System.Diagnostics.EventLog.dll",
+        "lib/net461/System.Diagnostics.EventLog.xml",
+        "lib/net6.0/System.Diagnostics.EventLog.dll",
+        "lib/net6.0/System.Diagnostics.EventLog.xml",
+        "lib/netcoreapp3.1/System.Diagnostics.EventLog.dll",
+        "lib/netcoreapp3.1/System.Diagnostics.EventLog.xml",
+        "lib/netstandard2.0/System.Diagnostics.EventLog.dll",
+        "lib/netstandard2.0/System.Diagnostics.EventLog.xml",
+        "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.Messages.dll",
+        "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.dll",
+        "runtimes/win/lib/net6.0/System.Diagnostics.EventLog.xml",
+        "runtimes/win/lib/netcoreapp3.1/System.Diagnostics.EventLog.Messages.dll",
+        "runtimes/win/lib/netcoreapp3.1/System.Diagnostics.EventLog.dll",
+        "runtimes/win/lib/netcoreapp3.1/System.Diagnostics.EventLog.xml",
+        "system.diagnostics.eventlog.6.0.0.nupkg.sha512",
+        "system.diagnostics.eventlog.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
     "System.Formats.Asn1/8.0.1": {
       "sha512": "XqKba7Mm/koKSjKMfW82olQdmfbI5yqeoLV/tidRp7fbh5rmHAQ5raDI/7SU0swTzv+jgqtUGkzmFxuUg0it1A==",
       "type": "package",
@@ -3265,14 +3513,17 @@
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "BCrypt.Net-Next >= 4.0.3",
+      "BCrypt.Net-Next >= 4.2.0",
+      "Docnet.Core >= 2.6.0",
       "MailKit >= 4.15.0",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 8.0.11",
       "Microsoft.AspNetCore.OpenApi >= 8.0.24",
       "Microsoft.EntityFrameworkCore >= 8.0.11",
       "Microsoft.EntityFrameworkCore.Design >= 8.0.11",
       "Microsoft.EntityFrameworkCore.Tools >= 8.0.11",
+      "Moq >= 4.20.72",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 8.0.11",
+      "SixLabors.ImageSharp >= 3.1.12",
       "Swashbuckle.AspNetCore >= 6.6.2",
       "System.IdentityModel.Tokens.Jwt >= 8.0.11"
     ]
@@ -3321,7 +3572,11 @@
         "dependencies": {
           "BCrypt.Net-Next": {
             "target": "Package",
-            "version": "[4.0.3, )"
+            "version": "[4.2.0, )"
+          },
+          "Docnet.Core": {
+            "target": "Package",
+            "version": "[2.6.0, )"
           },
           "MailKit": {
             "target": "Package",
@@ -3351,9 +3606,17 @@
             "target": "Package",
             "version": "[8.0.11, )"
           },
+          "Moq": {
+            "target": "Package",
+            "version": "[4.20.72, )"
+          },
           "Npgsql.EntityFrameworkCore.PostgreSQL": {
             "target": "Package",
             "version": "[8.0.11, )"
+          },
+          "SixLabors.ImageSharp": {
+            "target": "Package",
+            "version": "[3.1.12, )"
           },
           "Swashbuckle.AspNetCore": {
             "target": "Package",
@@ -3394,6 +3657,16 @@
       "warningLevel": 1,
       "message": "planProject depends on System.IdentityModel.Tokens.Jwt (>= 8.0.11) but System.IdentityModel.Tokens.Jwt 8.0.11 was not found. An approximate best match of System.IdentityModel.Tokens.Jwt 8.1.0 was resolved.",
       "libraryId": "System.IdentityModel.Tokens.Jwt",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'MailKit' 4.15.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-9j88-vvj5-vhgr",
+      "libraryId": "MailKit",
       "targetGraphs": [
         "net8.0"
       ]

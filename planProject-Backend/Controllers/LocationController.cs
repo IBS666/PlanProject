@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using planProject.Services.Interfaces;
+using System.Security.Claims;
 
 namespace planProject.Controllers
 {
@@ -16,20 +17,22 @@ namespace planProject.Controllers
         }
 
         
-        [Authorize(Roles = "Admin,Chef")]
+        [Authorize(Policy = "Creer_Localisation")]
         [HttpPost]
         public async Task<IActionResult> CreateLocation(CreateLocationDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var location = await _locationService.CreateLocationAsync(request);
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            var location = await _locationService.CreateLocationAsync(request, currentUserId);
 
             return CreatedAtAction(nameof(GetLocationById), new { locationId = location.Id }, location);
         }
 
         
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Localisation")]
         [HttpGet("{locationId}")]
         public async Task<IActionResult> GetLocationById(int locationId)
         {
@@ -42,7 +45,7 @@ namespace planProject.Controllers
         }
 
         
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Localisation")]
         [HttpGet("{locationId}/children")]
         public async Task<IActionResult> GetChildren(int locationId)
         {
@@ -52,7 +55,7 @@ namespace planProject.Controllers
         }
 
         
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Localisation")]
         [HttpGet("project/{projectId}")]
         public async Task<IActionResult> GetLocationsByProject(int projectId)
         {
@@ -62,7 +65,7 @@ namespace planProject.Controllers
         }
 
         
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Localisation")]
         [HttpGet("project/{projectId}/tree")]
         public async Task<IActionResult> GetLocationTree(int projectId)
         {
@@ -72,13 +75,15 @@ namespace planProject.Controllers
         }
 
         
-        [Authorize(Roles = "Admin,Chef")]
+        [Authorize(Policy = "Supprimer_Localisation")]
         [HttpDelete("{locationId}")]
         public async Task<IActionResult> DeleteLocation(int locationId)
         {
             try
             {
-                var deleted = await _locationService.DeleteLocationAsync(locationId);
+                var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+                var deleted = await _locationService.DeleteLocationAsync(locationId, currentUserId);
 
                 if (!deleted)
                     return NotFound();

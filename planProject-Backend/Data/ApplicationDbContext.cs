@@ -24,6 +24,7 @@ namespace planProject.Data
         public DbSet<AIAnalysis> AIAnalyses { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<ProjectTask> Tasks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -141,6 +142,39 @@ namespace planProject.Data
                 .HasForeignKey(al => al.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Configure Task relationships
+            modelBuilder.Entity<ProjectTask>()
+                .HasOne(t => t.Project)
+                .WithMany(p => p.Tasks)
+                .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProjectTask>()
+                .HasOne(t => t.Creator)
+                .WithMany(u => u.CreatedTasks)
+                .HasForeignKey(t => t.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjectTask>()
+                .HasOne(t => t.Assignee)
+                .WithMany(u => u.AssignedTasks)
+                .HasForeignKey(t => t.AssignedTo)
+                .OnDelete(DeleteBehavior.SetNull);    
+
+            modelBuilder.Entity<AIAnalysis>()
+                .HasOne(ai => ai.PlanVersion)
+                .WithMany(pv => pv.AIAnalyses)
+                .HasForeignKey(ai => ai.VersionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            
+            modelBuilder.Entity<AIAnalysis>()
+                .HasIndex(a => new { a.VersionId, a.ComparedWithVersionId })
+                .IsUnique();    
+
+             
+                
+
             // Add indexes for performance
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
@@ -160,6 +194,15 @@ namespace planProject.Data
 
             modelBuilder.Entity<AuditLog>()
                 .HasIndex(al => al.CreatedAt);
+
+             modelBuilder.Entity<ProjectTask>()
+                .HasIndex(t => t.Status);
+
+            modelBuilder.Entity<ProjectTask>()
+                .HasIndex(t => t.ProjectId);
+
+            modelBuilder.Entity<ProjectTask>()
+                .HasIndex(t => t.AssignedTo);      
         }
     }
 }

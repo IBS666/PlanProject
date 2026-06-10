@@ -17,7 +17,7 @@ namespace planProject.Controllers
         }
 
         
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Plan")]
         [HttpGet("{planId}")]
         public async Task<IActionResult> GetPlanById(int planId)
         {
@@ -29,8 +29,9 @@ namespace planProject.Controllers
             return Ok(plan);
         }
 
-        [Authorize(Roles = "Admin,Chef")]
+        [Authorize(Policy = "Creer_Plan")]
         [HttpPost]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreatePlan([FromForm] CreatePlanDto request)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -45,6 +46,7 @@ namespace planProject.Controllers
             return Ok(plan);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet("count")]
         public async Task<IActionResult> GetTotalPlansCount()
         {
@@ -52,7 +54,7 @@ namespace planProject.Controllers
             return Ok(count);
         }
 
-        [AllowAnonymous]
+        [Authorize(Policy = "Lire_Localisation")]
         [HttpGet("location-with-plans")]
         public async Task<IActionResult> GetLocationsWithPlans()
         {
@@ -60,6 +62,7 @@ namespace planProject.Controllers
             return Ok(result);
         }
 
+        [Authorize(Policy = "Lire_Plan")]
         [HttpGet("location/{locationId}")]
         public async Task<IActionResult> GetPlansByLocation(int locationId)
         {
@@ -68,11 +71,12 @@ namespace planProject.Controllers
         }
 
         
-        [Authorize(Roles = "Admin,Chef")]
+        [Authorize(Policy = "Supprimer_Plan")]
         [HttpDelete("{planId}")]
         public async Task<IActionResult> DeletePlan(int planId)
         {
-            var deleted = await _planService.DeletePlanAsync(planId);
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var deleted = await _planService.DeletePlanAsync(planId, currentUserId);
 
             if (!deleted)
                 return NotFound();
@@ -80,25 +84,79 @@ namespace planProject.Controllers
             return NoContent();
         }
 
-        [Authorize(Roles = "Admin,Chef")]
-        [HttpPost("{planId}/versions")]
-        public async Task<IActionResult> AddVersion(int planId, [FromForm] IFormFile file, [FromForm] string? comment = null)
+        [Authorize(Policy = "Creer_VersionPlan")]
+[HttpPost("{planId}/versions")]
+[Consumes("multipart/form-data")]
+public async Task<IActionResult> AddVersion(int planId, [FromForm] AddVersionDto request)
+{
+    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+    if (userIdClaim == null) return Unauthorized();
+
+    var userId = int.Parse(userIdClaim.Value);
+
+    try
+    {
+        var version = await _planService.AddVersionAsync(planId, request.File, userId, request.Comment);
+        return Ok(version);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+
+        [Authorize(Policy = "Supprimer_VersionPlan")]
+        [HttpDelete("versions/{versionId}")]
+        public async Task<IActionResult> DeleteVersion(int versionId)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null) return Unauthorized();
-
-            var userId = int.Parse(userIdClaim.Value);
-
-            try
-            {
-                var version = await _planService.AddVersionAsync(planId, file, userId, comment);
-                return Ok(version);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var deleted = await _planService.DeleteVersionAsync(versionId, currentUserId);
+            if (!deleted)
+                return NotFound();
+            return NoContent();
         }
+
+        [HttpGet("my-plans-count")]
+[Authorize] 
+public async Task<IActionResult> GetMyPlansCount()
+{
+    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+    if (userIdClaim == null) return Unauthorized();
+    var userId = int.Parse(userIdClaim.Value);
+
+    var count = await _planService.GetMyPlansCountAsync(userId);
+    return Ok(count);
+}
+
+[HttpGet("my-versions-count")]
+[Authorize] 
+public async Task<IActionResult> GetMyVersionsCount()
+{
+    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+    if (userIdClaim == null) return Unauthorized();
+    var userId = int.Parse(userIdClaim.Value);
+
+    var count = await _planService.GetMyVersionsCountAsync(userId);
+    return Ok(count);
+}
+
+[HttpGet("my-plans-by-category")]
+[Authorize]
+public async Task<IActionResult> GetMyPlansByCategory()
+{
+    try
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) return Unauthorized();
+        var userId = int.Parse(userIdClaim.Value);
+        var data = await _planService.GetMyPlansByCategoryAsync(userId);
+        return Ok(data);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     }
 }

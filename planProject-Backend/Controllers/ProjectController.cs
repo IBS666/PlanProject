@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using planProject.Services;
+using planProject.Services.Interfaces;
 
 namespace planProject.Controllers
 {   
@@ -16,7 +16,7 @@ namespace planProject.Controllers
             _projectService = projectService;
         }
 
-        [Authorize (Roles = "Chef")]
+        [Authorize(Policy = "Creer_Projet")]
         [HttpPost]
         public async Task<IActionResult> CreateProject(CreateProjectDto request)
         {
@@ -25,7 +25,7 @@ namespace planProject.Controllers
             return Ok(project);
         }
 
-        [Authorize (Roles = "Admin,Chef")]
+        [Authorize(Policy = "Modifier_Projet")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProject(int id, UpdateProjectDto request)
         {
@@ -40,7 +40,7 @@ namespace planProject.Controllers
             };
         }
 
-        [Authorize (Roles = "Admin,Chef")]
+        [Authorize(Policy = "Supprimer_Projet")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProject(int id)
         {
@@ -55,7 +55,7 @@ namespace planProject.Controllers
             };
         }
 
-        [Authorize (Roles = "Admin,Chef")]
+        [Authorize(Policy = "Ajouter_MembreProjet")]
         [HttpPost("{projectId}/members/{userEmail}")]
         public async Task<IActionResult> AddMemberByEmail(int projectId, string userEmail)
         {
@@ -72,12 +72,14 @@ namespace planProject.Controllers
             };
         }
 
-        [Authorize (Roles = "Admin,Chef")]
+        [Authorize(Policy = "Supprimer_MembreProjet")]
         [HttpDelete("{projectId}/members/{userId}")]
         public async Task<IActionResult> RemoveMember(int projectId, int userId)
         {
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var result = await _projectService.RemoveMemberAsync(projectId, userId, currentUserId);
+            
+            Console.WriteLine($"==> RemoveMember: projectId={projectId}, userId={userId}, currentUserId={currentUserId}");
 
             return result switch
             {
@@ -89,7 +91,7 @@ namespace planProject.Controllers
             };
         }
 
-        [AllowAnonymous]
+        [Authorize(Policy = "Voir_MembresProjet")]
         [HttpGet("{projectId}/members")]
         public async Task<IActionResult> GetMembers(int projectId)
         {
@@ -100,7 +102,7 @@ namespace planProject.Controllers
             return Ok(members);
         }
 
-        [Authorize (Roles = "Ingenieur,Tech,Chef")]
+        [Authorize(Policy = "Lire_MesProjets")]
         [HttpGet("my-projects")]
         public async Task<IActionResult> GetMyProjects()
         {
@@ -110,7 +112,7 @@ namespace planProject.Controllers
         }
 
 
-        [Authorize (Roles = "Admin")]
+        [Authorize(Policy = "Voir_Tous_Projets")]
         [HttpGet]
         public async Task<IActionResult> GetAllProjects()
         {

@@ -1,25 +1,23 @@
 import { getToken } from '../utils/tokenUtils'
 
+const BASE_URL = 'http://localhost:5279/api'
+const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` })
+
 export interface AuditLog {
   id: number
-  userId: number
-  userName: string
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'UPLOAD'
-  entityType: 'User' | 'Project' | 'Plan' | 'Location'
-  entityName: string | null
+  action: string
+  entity: string
+  entityId: number | null
+  description: string | null
   createdAt: string
+  userName: string
+  userEmail: string
 }
 
-const BASE_URL = 'http://localhost:5279/api'
-
-const headers = () => ({
-  Authorization: `Bearer ${getToken()}`,
-})
-
 export const auditService = {
-  getRecent: async (limit = 10): Promise<AuditLog[]> => {
-    const res = await fetch(`${BASE_URL}/audit/recent?limit=${limit}`, { headers: headers() })
+  async getLogs(): Promise<AuditLog[]> {
+    const res = await fetch(`${BASE_URL}/audit`, { headers: authHeaders() })
     if (!res.ok) throw new Error('Erreur chargement audit')
     return res.json()
-  },
+  }
 }

@@ -1,2 +1,8 @@
 # Fichiers secrets (ne pas pousser sur GitHub)
 appsettings.Secret.json
+
+
+# Environnements virtuels et fichiers de cache
+.env
+venv/
+__pycache__/

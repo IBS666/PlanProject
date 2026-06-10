@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loginRequest } from '../services/authService'
-import { saveToken, decodeToken } from '../utils/tokenUtils'
+import { getToken, saveToken, decodeToken } from '../utils/tokenUtils'
+import { useEffect } from 'react'
 
 
 
@@ -13,6 +14,19 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+
+  useEffect(() => {
+    const token = getToken()
+
+    if (token) {
+      const decoded = decodeToken(token)
+      const role =
+        decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']
+
+      if (role === 'Admin') navigate('/admin')
+      else navigate('/ChefDashboard')
+    }
+   }, [])
 
   const validate = (): boolean => {
     const newErrors: { email?: string; password?: string } = {}
@@ -35,8 +49,7 @@ export default function Login() {
       console.log('Role détecté:', role)
 
       if (role === 'Admin') navigate('/admin')
-      else if (role === 'Chef') navigate('/chef')
-      else navigate('/ingenieur/dashboard')
+      else navigate('/ChefDashboard')
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur de connexion'
@@ -90,7 +103,8 @@ export default function Login() {
       </button>
 
       {/* Card */}
-      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440, background: '#ffffff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 24px 60px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04)', padding: '48px 44px' }}>
+      <form onSubmit={(e) => {e.preventDefault()
+      submit()}} style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 440, background: '#ffffff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 24px 60px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04)', padding: '48px 44px' }}>
 
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -139,6 +153,7 @@ export default function Login() {
                 onBlur={e => { if (!errors.password) e.target.style.borderColor = '#e2e8f0' }}
               />
               <button
+                type="button"
                 onClick={() => setShowPwd(!showPwd)}
                 style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 15, padding: 0, lineHeight: 1 }}
               >
@@ -154,7 +169,7 @@ export default function Login() {
 
           {/* Submit */}
           <button
-            onClick={submit}
+            type="submit"
             style={{ width: '100%', padding: '13px', background: loading ? '#93c5fd' : '#1d4ed8', color: 'white', fontWeight: 700, fontSize: 15, borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 6, boxShadow: '0 4px 14px rgba(29,78,216,0.25)', transition: 'background 0.2s' }}
             onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1e40af' }}
             onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#1d4ed8' }}
@@ -180,7 +195,7 @@ export default function Login() {
             Accès interne sécurisé. Contactez l'administrateur pour tout problème de connexion.
           </p>
         </div>
-      </div>
+      </form>
 
     </div>
   )

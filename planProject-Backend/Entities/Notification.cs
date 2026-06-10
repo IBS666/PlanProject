@@ -14,11 +14,11 @@ using System.ComponentModel.DataAnnotations.Schema;
 
         [Required]
         [Column("name")]
-        [StringLength(20)]
+        [StringLength(100)]
         public string Name { get; set; } = string.Empty;
 
         [Column("type")]
-        [StringLength(20)]
+        [StringLength(50)]
         public string? Type { get; set; }
 
         [Column("message")]

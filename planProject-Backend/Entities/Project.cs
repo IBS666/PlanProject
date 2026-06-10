@@ -38,4 +38,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
         public virtual ICollection<ProjectMember> ProjectMembers { get; set; } = new List<ProjectMember>();
 
+        public virtual ICollection<ProjectTask> Tasks { get; set; } = new List<ProjectTask>();
+
     }

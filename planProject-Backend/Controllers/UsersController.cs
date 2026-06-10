@@ -2,13 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using planProject.Data;
-using planProject.Services;
+using planProject.Services.Interfaces;
+using System.Security.Claims;
 
 namespace planProject.Controllers
 {
     [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
@@ -20,6 +20,7 @@ public class UsersController : ControllerBase
         _userService = userService;
     }
 
+    [Authorize(Policy = "Lire_Utilisateur")]
     [HttpGet]
     public async Task<IActionResult> GetAllUsers()
     {
@@ -27,24 +28,36 @@ public class UsersController : ControllerBase
         return Ok(users);
     }
 
+    [Authorize(Policy = "Modifier_Utilisateur")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateUser(int id, UpdateUserDto request)
     {
-        var success = await _userService.UpdateUserAsync(id, request);
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var success = await _userService.UpdateUserAsync(id, request, currentUserId);
+
         return success ? Ok("User updated successfully") : NotFound("User not found");
     }
 
+    [Authorize(Policy = "Supprimer_Utilisateur")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteUser(int id)
     {
-        var success = await _userService.DeleteUserAsync(id);
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var success = await _userService.DeleteUserAsync(id, currentUserId);
+
         return success ? Ok("User deleted successfully") : NotFound("User not found");
     }
 
+    [Authorize(Policy = "Modifier_Utilisateur")]
     [HttpPut("{id}/role")]
     public async Task<IActionResult> ChangeUserRole(int id, ChangeRoleDto request)
     {
-        var result = await _userService.ChangeUserRoleAsync(id, request);
+        var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var result = await _userService.ChangeUserRoleAsync(id, request, currentUserId);
+
         if (result == "User not found" || result == "Role does not exist")
             return BadRequest(result);
 

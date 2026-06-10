@@ -1,6 +1,6 @@
 using planProject.Data;
 
-namespace planProject.Services
+namespace planProject.Services.Interfaces
 {
     public interface IProjectService
     {

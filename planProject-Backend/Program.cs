@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using planProject.Data;
 using planProject.Services;
 using planProject.Services.Interfaces;
+using planProject.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +50,14 @@ builder.Services.AddScoped<IEmailService,EmailService>();
 builder.Services.AddScoped<ILocationService,LocationService>();
 builder.Services.AddScoped<IPlanService,PlanService>();
 builder.Services.AddScoped<IRoleService,RoleService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddHttpClient();
+
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // ---------------- Swagger + JWT support ----------------
 builder.Services.AddEndpointsApiExplorer();
@@ -77,13 +87,16 @@ builder.Services.AddSwaggerGen(options =>
             new string[] {}
         }
     });
-    
+
     options.MapType<IFormFile>(() => new Microsoft.OpenApi.Models.OpenApiSchema
     {
         Type = "string",
         Format = "binary"
     });
-    
+
+    // ← AJOUTER CETTE LIGNE
+    options.CustomOperationIds(e => $"{e.ActionDescriptor.RouteValues["controller"]}_{e.HttpMethod}_{e.RelativePath?.Replace("/", "_")}");
+    options.SupportNonNullableReferenceTypes();
 });
 
 builder.Services.AddCors(options =>

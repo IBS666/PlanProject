@@ -1,0 +1,19 @@
+public enum NotificationType
+{
+    ProjetAjoute,
+    ProjetModifie,
+    ProjetSupprime,
+    MembreAjoute,
+    MembreSupprime,
+    PlanImporte,
+    PlanSupprime,
+    PlanModifie,
+    CommentaireAjoute,
+    NouvelleVersion,
+    LocalisationCree,
+    LocalisationSupprime,
+    TaskStatutModifie,
+    TaskSupprimee,
+    TaskAssignee,
+    VersionAnalysee
+}

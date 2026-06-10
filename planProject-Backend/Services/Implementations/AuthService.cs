@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using planProject.Data;
 using planProject.Services.Interfaces;
+using planProject.Enums;
 
 namespace planProject.Services
 {
@@ -10,12 +11,15 @@ namespace planProject.Services
         private readonly JwtService _jwtService;
         private readonly IEmailService _emailService;
 
+        private readonly IAuditService _auditService;
+
     
-        public AuthService(ApplicationDbContext context, JwtService jwtService, IEmailService emailService)
+        public AuthService(ApplicationDbContext context, JwtService jwtService, IEmailService emailService, IAuditService auditService)
         {
             _context = context;
             _jwtService = jwtService;
             _emailService = emailService;
+            _auditService = auditService;
         }
 
         
@@ -41,6 +45,8 @@ namespace planProject.Services
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
+            await _auditService.LogAsync(user.Id,AuditAction.CREATE.ToString(),"User",user.Id,$"Nouvel utilisateur enregistré : {user.Email}");
+
             return "User registered successfully";
         }
 
@@ -57,7 +63,8 @@ namespace planProject.Services
             if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return "Invalid credentials";
 
-            var token = _jwtService.GenerateToken(user);
+            var token = await _jwtService.GenerateToken(user);
+            await _auditService.LogAsync(user.Id,AuditAction.LOGIN.ToString(),"Auth",user.Id,$"Connexion réussie pour {user.Email}");
             return token;
         }
 
@@ -72,6 +79,7 @@ namespace planProject.Services
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
 
             await _context.SaveChangesAsync();
+            await _auditService.LogAsync(user.Id,AuditAction.UPDATE.ToString(),"User",user.Id,$"Mot de passe changé pour {user.Email}");
             return "Password changed successfully";
         }
 

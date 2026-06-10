@@ -22,7 +22,7 @@ namespace planProject.Controllers
         }
 
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = "Creer_Utilisateur")]
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto request)
         {
@@ -62,7 +62,7 @@ namespace planProject.Controllers
             return Ok(new { token });
         }
 
-
+        [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword(ChangePasswordDto request)
         {
@@ -84,9 +84,9 @@ namespace planProject.Controllers
             if (result == "User not found")
                 return NotFound(result);
 
-            return Ok(result); // Pour test (normalement on envoie un email)
+            return Ok(result); 
         }
-
+        
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordDto request)
         {
