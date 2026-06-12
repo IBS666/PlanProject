@@ -10,7 +10,7 @@ jobs:
 
   # ── Job 1 : Backend .NET ───────────────────────────────────
   backend:
-    name: Build Backend
+    name: Build & Test Backend
     runs-on: ubuntu-latest
 
     steps:
@@ -30,9 +30,13 @@ jobs:
         run: dotnet build --no-restore -c Release
         working-directory: planProject-Backend
 
+      - name: Run tests
+        run: dotnet test --no-build -c Release --verbosity normal
+        working-directory: planProject-Backend
+
   # ── Job 2 : Frontend React ────────────────────────────────
   frontend:
-    name: Build Frontend
+    name: Build & Test Frontend
     runs-on: ubuntu-latest
 
     steps:
@@ -50,13 +54,17 @@ jobs:
         run: npm install
         working-directory: planProject-Frontend
 
+      - name: Run tests
+        run: npm test
+        working-directory: planProject-Frontend
+
       - name: Build
         run: npm run build
         working-directory: planProject-Frontend
 
   # ── Job 3 : IA Service FastAPI ────────────────────────────
   ia-service:
-    name: Build & Test IA Service
+    name: Build IA Service
     runs-on: ubuntu-latest
 
     steps:
