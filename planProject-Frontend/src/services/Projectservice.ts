@@ -1,6 +1,6 @@
 import { getToken } from '../utils/tokenUtils'
 
-const API_URL = 'http://localhost:5279/api'
+const API_URL = '/api'
 
 const authHeaders = () => ({
   'Content-Type': 'application/json',

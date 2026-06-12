@@ -60,7 +60,7 @@ interface DiffResult {
 
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-const BASE_URL = 'http://localhost:5279/api'
+const BASE_URL = '/api'
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` })
 
 const getRoleName = (role: string | { name: string }): string => {
@@ -180,7 +180,7 @@ export function PdfViewerModal({
   version, planName, planId, folderColor, folderBg, onClose, onSaved,
   isCurrentVersion, canAnnotate, allVersions,
 }: PdfViewerModalProps) {
-  const pdfUrl = `http://localhost:5279${version.filePath}`
+  const pdfUrl = `${BASE_URL}${version.filePath}`
   const isPdf  = version.fileType?.toLowerCase().includes('pdf') ||
                  version.filePath?.toLowerCase().endsWith('.pdf')
 
@@ -1011,7 +1011,7 @@ export function PdfViewerModal({
               v{leftVersion.versionNumber} — actuelle
             </div>
             <div style={{ position: 'relative', display: 'inline-block' }}>
-              <Document file={`http://localhost:5279${leftVersion.filePath}`}>
+              <Document file={`${BASE_URL}${leftVersion.filePath}`}>
                 <Page
                   pageNumber={pageNumber}
                   scale={scale * 0.60}
@@ -1035,7 +1035,7 @@ export function PdfViewerModal({
               v{rightVersion.versionNumber} — comparée
             </div>
             <div style={{ position: 'relative', display: 'inline-block' }}>
-              <Document file={`http://localhost:5279${rightVersion.filePath}`}>
+              <Document file={`${BASE_URL}${rightVersion.filePath}`}>
                 <Page
                   pageNumber={pageNumber}
                   scale={scale * 0.60}
@@ -1623,7 +1623,7 @@ export function MultiViewPage({ plan, folderColor, folderBg, onClose, onOpenView
             minHeight: 0, overflow: 'auto' }}>
             {[{ version: v1 }, { version: v2 }].map(({ version }, idx) => {
               const isPdf = version.fileType?.toLowerCase().includes('pdf') || version.filePath?.toLowerCase().endsWith('.pdf')
-              const url = `http://localhost:5279${version.filePath}`
+              const url = `${BASE_URL}${version.filePath}`
               const isCurrent = version.versionNumber === plan.currentVersion
 
               return (
@@ -2835,7 +2835,7 @@ export default function ChefDashboard() {
                                 <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'><path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/><circle cx='12' cy='12' r='3'/></svg>
                                 Ouvrir
                               </button>
-                              <a href={`http://localhost:5279${version.filePath}`} target='_blank' rel='noopener noreferrer' className='btn-download-version'
+                              <a href={`${BASE_URL}${version.filePath}`} target='_blank' rel='noopener noreferrer' className='btn-download-version'
                                 style={{ background: isCurrent ? fc : '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '6px', color: '#fff', textDecoration: 'none' }}>
                                 <svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>
                                 Télécharger

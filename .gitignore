@@ -1,8 +1,8 @@
 # Fichiers secrets (ne pas pousser sur GitHub)
 appsettings.Secret.json
-
+planProject-Backend/.env
 
 # Environnements virtuels et fichiers de cache
-.env
+ia-service/.env
 venv/
 __pycache__/

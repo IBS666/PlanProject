@@ -25,7 +25,7 @@ export interface LocationWithPlans {
   hasPlans: boolean
 }
 
-const BASE_URL = 'http://localhost:5279/api'
+const BASE_URL = '/api'
 
 const headers = () => ({
   Authorization: `Bearer ${getToken()}`,

@@ -1,6 +1,6 @@
 import { getToken } from '../utils/tokenUtils'
 
-const BASE_URL = 'http://localhost:5279/api'
+const BASE_URL = '/api'
 
 const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`

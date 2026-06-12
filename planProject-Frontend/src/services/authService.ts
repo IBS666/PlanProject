@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5279/api'
+const API_URL = '/api'
 
 export interface LoginPayload {
   email: string

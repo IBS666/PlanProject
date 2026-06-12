@@ -1,6 +1,6 @@
 import { getToken } from '../utils/tokenUtils'
 
-const API_BASE = 'http://localhost:5279/api'
+const API_BASE = '/api'
 
 export interface Permission {
   id: number;
